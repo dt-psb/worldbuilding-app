@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:;" />
+  <title>세계관 빌더</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <nav id="sidebar">
+      <div id="sidebar-logo">
+        <span class="logo-icon">⚔️</span>
+        <span class="logo-text">세계관 빌더</span>
+      </div>
+      <ul id="nav-list">
+        <li class="nav-item active" data-page="characters">
+          <span class="nav-icon">👤</span>
+          <span class="nav-label">캐릭터</span>
+        </li>
+        <li class="nav-item" data-page="factions">
+          <span class="nav-icon">🏰</span>
+          <span class="nav-label">세력</span>
+        </li>
+        <li class="nav-item" data-page="relations">
+          <span class="nav-icon">🔗</span>
+          <span class="nav-label">관계</span>
+        </li>
+        <li class="nav-item" data-page="graph">
+          <span class="nav-icon">🕸️</span>
+          <span class="nav-label">관계 그래프</span>
+        </li>
+        <li class="nav-item" data-page="episodes">
+          <span class="nav-icon">📖</span>
+          <span class="nav-label">에피소드</span>
+        </li>
+        <li class="nav-item" data-page="calendar">
+          <span class="nav-icon">🎂</span>
+          <span class="nav-label">생일 달력</span>
+        </li>
+      </ul>
+      <div id="sidebar-footer">
+        <span id="char-count-badge">0명</span>
+        <button id="btn-theme-toggle" class="btn-theme" title="테마 전환">🌙 다크</button>
+      </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main id="main-content">
+      <!-- Characters Page -->
+      <section id="page-characters" class="page active">
+        <div class="page-header">
+          <h1>캐릭터 목록</h1>
+          <div class="page-actions">
+            <input type="text" id="char-search" class="search-input" placeholder="이름/별명 검색..." />
+            <select id="filter-faction" class="filter-select">
+              <option value="">모든 세력</option>
+            </select>
+            <select id="filter-gender" class="filter-select">
+              <option value="">모든 성별</option>
+            </select>
+            <select id="sort-by" class="filter-select">
+              <option value="name">이름순</option>
+              <option value="age">나이순</option>
+              <option value="height">키순</option>
+              <option value="created_at">생성일순</option>
+            </select>
+            <div class="view-toggle">
+              <button id="btn-grid-view" class="btn-icon active" title="그리드 뷰">▦</button>
+              <button id="btn-list-view" class="btn-icon" title="리스트 뷰">☰</button>
+            </div>
+            <button id="btn-new-character" class="btn-primary">+ 캐릭터 추가</button>
+          </div>
+        </div>
+        <div id="char-grid" class="char-grid"></div>
+        <div id="char-table-wrap" class="table-wrap hidden">
+          <table id="char-table" class="data-table">
+            <thead>
+              <tr>
+                <th>이름</th>
+                <th>나이</th>
+                <th>성별</th>
+                <th>출신지</th>
+                <th>소속 세력</th>
+                <th>작업</th>
+              </tr>
+            </thead>
+            <tbody id="char-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Factions Page -->
+      <section id="page-factions" class="page hidden">
+        <div class="page-header">
+          <h1>세력 관리</h1>
+          <div class="page-actions">
+            <button id="btn-new-faction" class="btn-primary">+ 세력 추가</button>
+          </div>
+        </div>
+        <div id="factions-grid" class="factions-grid"></div>
+      </section>
+
+      <!-- Relations Page -->
+      <section id="page-relations" class="page hidden">
+        <div class="page-header">
+          <h1>캐릭터 간의 관계</h1>
+          <div class="page-actions">
+            <button id="btn-new-relation" class="btn-primary">+ 관계 작성</button>
+          </div>
+        </div>
+
+        <!-- Relationship Viewer & Narrative Reader -->
+        <div class="rel-viewer-card">
+          <div class="rel-selector-bar">
+            <span style="font-weight:700;white-space:nowrap;font-size:13px;">관계 비교 &amp; 서사:</span>
+            <div id="rel-btn-pick-a" class="char-pick-btn" title="캐릭터 A 선택">
+              <span id="rel-pick-a-label">👤 캐릭터 A 선택</span>
+            </div>
+            <span class="rel-vs-badge">⟷</span>
+            <div id="rel-btn-pick-b" class="char-pick-btn" title="캐릭터 B 선택">
+              <span id="rel-pick-b-label">👤 캐릭터 B 선택</span>
+            </div>
+            <button type="button" id="btn-rel-swap" class="btn-secondary btn-sm" title="순서 맞바꾸기">🔄</button>
+            <input type="hidden" id="rel-view-char-a" />
+            <input type="hidden" id="rel-view-char-b" />
+          </div>
+
+          <div id="rel-view-content" class="rel-view-content">
+            <div class="empty-state" style="padding:30px 20px;">
+              두 캐릭터를 선택하시면 두 인물의 프로필 비교와 <strong>AI로 생성한 긴 관계 서사 본문(2000자 이상)</strong>을 바로 읽을 수 있습니다.
+            </div>
+          </div>
+        </div>
+
+        <!-- Registered Relations List -->
+        <div class="detail-section" style="margin-top:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+            <h3 style="font-size:15px;font-weight:700;">등록된 관계 목록</h3>
+            <input type="text" id="rel-search-input" class="search-input" style="width:220px;" placeholder="캐릭터명/관계 검색..." />
+          </div>
+          <div class="table-wrap">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>캐릭터 A</th>
+                  <th>관계 명칭</th>
+                  <th>캐릭터 B</th>
+                  <th>한 줄 설명</th>
+                  <th>서사 본문</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody id="relations-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Graph Page -->
+      <section id="page-graph" class="page hidden">
+        <div class="page-header">
+          <h1>관계 그래프</h1>
+          <div class="page-actions">
+            <select id="filter-graph-faction" class="filter-select">
+              <option value="">모든 세력</option>
+            </select>
+            <select id="filter-graph-reltype" class="filter-select">
+              <option value="">모든 관계</option>
+              <option value="적대">적대</option>
+              <option value="우호">우호</option>
+              <option value="가족">가족</option>
+              <option value="연인">연인</option>
+              <option value="동료">동료</option>
+              <option value="라이벌">라이벌</option>
+              <option value="스승/제자">스승/제자</option>
+              <option value="기타">기타</option>
+            </select>
+            <button id="btn-graph-reset" class="btn-secondary">초기화</button>
+          </div>
+        </div>
+        <div id="graph-container">
+          <svg id="graph-svg"></svg>
+          <div id="graph-legend"></div>
+        </div>
+      </section>
+
+      <!-- Episodes Page -->
+      <section id="page-episodes" class="page hidden">
+        <div class="page-header">
+          <h1>에피소드</h1>
+          <div class="page-actions">
+            <button id="btn-new-episode" class="btn-primary">+ 에피소드 추가</button>
+          </div>
+        </div>
+        <div id="episodes-grid" class="episodes-grid"></div>
+      </section>
+
+      <!-- Calendar Page -->
+      <section id="page-calendar" class="page hidden">
+        <div class="page-header">
+          <h1>생일 달력</h1>
+          <div class="page-actions">
+            <button id="cal-prev-month" class="btn-secondary">◀</button>
+            <span id="cal-month-label" class="cal-month-label"></span>
+            <button id="cal-next-month" class="btn-secondary">▶</button>
+          </div>
+        </div>
+        <div id="calendar-container" class="calendar-container">
+          <div class="cal-weekdays">
+            <div>일</div><div>월</div><div>화</div><div>수</div><div>목</div><div>금</div><div>토</div>
+          </div>
+          <div id="cal-grid" class="cal-grid"></div>
+        </div>
+        <!-- Birthday list for selected day -->
+        <div id="cal-birthday-panel" class="cal-birthday-panel hidden">
+          <div class="cal-birthday-panel-header">
+            <span id="cal-selected-date-label"></span>
+            <button id="cal-panel-close" class="btn-ghost btn-sm">✕</button>
+          </div>
+          <div id="cal-birthday-chars" class="cal-birthday-chars"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ═══════ MODALS ═══════ -->
+
+  <!-- Episode Form Modal -->
+  <div id="modal-episode-form" class="modal-overlay hidden">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h2 id="episode-form-title">에피소드 추가</h2>
+        <button class="modal-close" data-modal="modal-episode-form">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>에피소드 제목 <span class="required">*</span></label>
+          <input type="text" id="ep-form-title" class="form-input" placeholder="에피소드 제목 입력" />
+          <input type="hidden" id="ep-form-order" value="0" />
+        </div>
+        <div class="form-group">
+          <label>줄거리 / 요약 (옵시디언 요약본 복붙용)</label>
+          <textarea id="ep-form-summary" class="form-textarea" rows="8" placeholder="에피소드 줄거리 요약본을 여기에 붙여넣으세요..."></textarea>
+        </div>
+        <div class="form-group">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <label style="margin-bottom:0">⭐ 주요 등장인물</label>
+            <button type="button" id="btn-ep-add-main" class="btn-secondary btn-sm">+ 캐릭터 추가</button>
+          </div>
+          <div id="ep-main-chars" class="char-chip-list"></div>
+        </div>
+        <div class="form-group">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <label style="margin-bottom:0">🎭 조연 등장인물</label>
+            <button type="button" id="btn-ep-add-sub" class="btn-secondary btn-sm">+ 캐릭터 추가</button>
+          </div>
+          <div id="ep-sub-chars" class="char-chip-list"></div>
+        </div>
+        <div class="form-group">
+          <label style="margin-bottom:8px;display:block;">🎬 단역 등장인물 (에피소드 전용)</label>
+          <div class="extra-char-form">
+            <input type="text" id="ep-extra-name" class="form-input" placeholder="단역 이름" />
+            <input type="text" id="ep-extra-gender" class="form-input" placeholder="성별" style="max-width:100px;" />
+            <input type="text" id="ep-extra-desc" class="form-input" placeholder="간단 설명" style="flex:2;" />
+            <button type="button" id="btn-ep-add-extra" class="btn-secondary btn-sm" style="white-space:nowrap;">+ 추가</button>
+          </div>
+          <div id="ep-extras-list" class="char-chip-list" style="margin-top:8px;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <input type="hidden" id="ep-form-id" />
+        <button id="btn-save-episode" class="btn-primary">저장</button>
+        <button class="btn-secondary modal-close" data-modal="modal-episode-form">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Episode Detail Modal -->
+  <div id="modal-episode-detail" class="modal-overlay hidden">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <div>
+          <h2 id="epd-title"></h2>
+        </div>
+        <button class="modal-close" data-modal="modal-episode-detail">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-section">
+          <h4>줄거리 / 요약</h4>
+          <div id="epd-summary" class="detail-text"></div>
+        </div>
+        <div class="detail-section">
+          <h4>⭐ 주요 등장인물</h4>
+          <div id="epd-main-chars" class="char-chip-list readonly"></div>
+        </div>
+        <div class="detail-section">
+          <h4>🎭 조연 등장인물</h4>
+          <div id="epd-sub-chars" class="char-chip-list readonly"></div>
+        </div>
+        <div class="detail-section">
+          <h4>🎬 단역 등장인물</h4>
+          <div id="epd-extras" class="char-chip-list readonly"></div>
+        </div>
+        <div class="detail-section">
+          <h4>🔗 등장인물 간의 관계</h4>
+          <div id="epd-relations-list" class="ep-relations-list"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <input type="hidden" id="epd-episode-id" />
+        <button id="btn-epd-edit" class="btn-primary">편집</button>
+        <button id="btn-epd-delete" class="btn-danger">삭제</button>
+        <button class="btn-secondary modal-close" data-modal="modal-episode-detail">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Detail Modal -->
+  <div id="modal-char-detail" class="modal-overlay hidden">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <div id="detail-header-info">
+          <div id="detail-avatar"></div>
+          <div>
+            <h2 id="detail-name"></h2>
+            <div id="detail-aliases" class="alias-list"></div>
+          </div>
+        </div>
+        <button class="modal-close" data-modal="modal-char-detail">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-two-col">
+          <div class="detail-left">
+            <div class="detail-meta-grid">
+              <div class="meta-item"><span class="meta-label">나이</span><span id="detail-age"></span></div>
+              <div class="meta-item"><span class="meta-label">키</span><span id="detail-height"></span></div>
+              <div class="meta-item"><span class="meta-label">생일</span><span id="detail-birthdate"></span></div>
+              <div class="meta-item"><span class="meta-label">성별</span><span id="detail-gender"></span></div>
+              <div class="meta-item"><span class="meta-label">출신지</span><span id="detail-origin"></span></div>
+            </div>
+            <div class="detail-section">
+              <h4>소속 세력</h4>
+              <div id="detail-factions" class="badge-list"></div>
+            </div>
+            <div class="detail-section">
+              <h4>관계</h4>
+              <div id="detail-relationships"></div>
+            </div>
+          </div>
+          <div class="detail-right">
+            <div class="tab-bar">
+              <button class="tab-btn active" data-tab="tab-appearance">외모/성격</button>
+              <button class="tab-btn" data-tab="tab-public">공개 프로필</button>
+              <button class="tab-btn" data-tab="tab-secret">🔒 비밀 프로필</button>
+              <button class="tab-btn" data-tab="tab-prompt">💡 프롬프트</button>
+              <button class="tab-btn" data-tab="tab-gallery">🖼️ 이미지 갤러리</button>
+            </div>
+            <div class="tab-content" id="tab-appearance">
+              <div class="detail-section">
+                <h4>외모</h4>
+                <p id="detail-appearance" class="detail-text"></p>
+              </div>
+              <div class="detail-section">
+                <h4>성격</h4>
+                <p id="detail-personality" class="detail-text"></p>
+              </div>
+            </div>
+            <div class="tab-content" id="tab-public">
+              <div class="profile-tab-header">
+                <span class="sub-label">공개 프로필</span>
+                <button id="btn-copy-public" class="btn-secondary btn-sm">📋 복사</button>
+              </div>
+              <p id="detail-profile-public" class="detail-text"></p>
+            </div>
+            <div class="tab-content hidden" id="tab-secret">
+              <div class="profile-tab-header">
+                <span class="sub-label">비밀 프로필 🔒</span>
+                <button id="btn-copy-secret" class="btn-secondary btn-sm">📋 복사</button>
+              </div>
+              <p id="detail-profile-secret" class="detail-text secret-text"></p>
+            </div>
+            <div class="tab-content hidden" id="tab-prompt">
+              <div class="prompt-header">
+                <span class="sub-label">캐릭터 생성 시 사용한 프롬프트</span>
+                <button id="btn-copy-prompt" class="btn-secondary btn-sm">📋 프롬프트 복사</button>
+              </div>
+              <pre id="detail-prompt" class="detail-text prompt-box"></pre>
+            </div>
+            <div class="tab-content hidden" id="tab-gallery">
+              <div class="gallery-header">
+                <span class="sub-label">등록된 이미지 모아보기</span>
+                <span class="sub-label" style="opacity:0.6;">이미지 추가·삭제는 편집 탭에서</span>
+              </div>
+              <div id="detail-gallery-grid" class="gallery-grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-detail-edit" class="btn-primary">편집</button>
+        <button id="btn-detail-delete" class="btn-danger">삭제</button>
+        <button class="btn-secondary modal-close" data-modal="modal-char-detail">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Edit/Create Modal -->
+  <div id="modal-char-form" class="modal-overlay hidden">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h2 id="form-title">캐릭터 추가</h2>
+        <button class="modal-close" data-modal="modal-char-form">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-two-col">
+          <div class="form-left">
+            <div class="form-image-area">
+              <div id="form-image-preview" class="image-preview">
+                <span>이미지 없음</span>
+              </div>
+              <button id="btn-upload-image" class="btn-secondary btn-sm">이미지 선택</button>
+              <button id="btn-clear-image" class="btn-ghost btn-sm">제거</button>
+            </div>
+            <input type="hidden" id="form-image-path" />
+
+            <div class="form-group">
+              <label>이름 <span class="required">*</span></label>
+              <input type="text" id="form-name" class="form-input" required />
+            </div>
+            <div class="form-group">
+              <label>별명 (Enter로 추가)</label>
+              <div id="alias-tags" class="tag-input-wrap"></div>
+              <input type="text" id="alias-input" class="form-input" placeholder="별명 입력 후 Enter" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>나이</label>
+                <input type="number" id="form-age" class="form-input" min="0" max="9999" />
+              </div>
+              <div class="form-group">
+                <label>키 (cm)</label>
+                <input type="number" id="form-height" class="form-input" min="0" max="300" placeholder="예: 172" />
+              </div>
+              <div class="form-group">
+                <label>생일</label>
+                <div class="birthdate-input-group">
+                  <select id="form-birth-month" class="filter-select">
+                    <option value="">-월 선택-</option>
+                    <option value="1월">1월</option><option value="2월">2월</option><option value="3월">3월</option>
+                    <option value="4월">4월</option><option value="5월">5월</option><option value="6월">6월</option>
+                    <option value="7월">7월</option><option value="8월">8월</option><option value="9월">9월</option>
+                    <option value="10월">10월</option><option value="11월">11월</option><option value="12월">12월</option>
+                  </select>
+                  <select id="form-birth-day" class="filter-select">
+                    <option value="">-일 선택-</option>
+                  </select>
+                  <input type="hidden" id="form-birthdate" />
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>성별</label>
+              <input type="text" id="form-gender" class="form-input" placeholder="예: 남성, 여성 등" />
+            </div>
+            <div class="form-group">
+              <label>출신지</label>
+              <input type="text" id="form-origin" class="form-input" />
+            </div>
+            <div class="form-group">
+              <div class="faction-header-wrap">
+                <label>소속 세력</label>
+                <input type="text" id="faction-search-input" class="search-input-sm" placeholder="🔍 세력 검색..." />
+              </div>
+              <div id="faction-checkboxes" class="scrollable-faction-list"></div>
+            </div>
+          </div>
+
+          <div class="form-right">
+            <div class="tab-bar">
+              <button class="tab-btn active" data-tab="form-appearance">외모/성격</button>
+              <button class="tab-btn" data-tab="form-public">공개 프로필</button>
+              <button class="tab-btn" data-tab="form-secret">🔒 비밀</button>
+              <button class="tab-btn" data-tab="form-prompt-tab">💡 생성 프롬프트</button>
+              <button class="tab-btn" data-tab="form-gallery-tab">🖼️ 이미지 관리</button>
+            </div>
+            <div class="tab-content" id="form-appearance">
+              <div class="form-group">
+                <label>외모</label>
+                <textarea id="form-appearance-text" class="form-textarea" rows="6" placeholder="외모 묘사를 입력하거나 붙여넣으세요..."></textarea>
+              </div>
+              <div class="form-group">
+                <label>성격</label>
+                <textarea id="form-personality" class="form-textarea" rows="6" placeholder="성격 특징을 입력하거나 붙여넣으세요..."></textarea>
+              </div>
+            </div>
+            <div class="tab-content hidden" id="form-public">
+              <div class="form-group">
+                <label>공개 프로필 (외부에 드러난 정보 / Obsidian 본문 복붙)</label>
+                <textarea id="form-profile-public" class="form-textarea" rows="14" placeholder="공개 프로필 내용을 자유롭게 붙여넣으세요..."></textarea>
+              </div>
+            </div>
+            <div class="tab-content hidden" id="form-secret">
+              <div class="form-group">
+                <label>비밀 프로필 🔒 (숨겨진 진실 / 흑막 등)</label>
+                <textarea id="form-profile-secret" class="form-textarea secret-textarea" rows="14" placeholder="작중 비밀 프로필, 진실, 배후 설정 등을 입력하세요..."></textarea>
+              </div>
+            </div>
+            <div class="tab-content hidden" id="form-prompt-tab">
+              <div class="form-group">
+                <label>AI 생성 프롬프트 (캐릭터 생성 시 썼던 프롬프트 복붙 보관)</label>
+                <textarea id="form-prompt" class="form-textarea" rows="14" placeholder="AI로 캐릭터를 생성할 때 입력했던 프롬프트를 여기에 붙여넣어 보관하세요..."></textarea>
+              </div>
+            </div>
+            <div class="tab-content hidden" id="form-gallery-tab">
+              <div class="gallery-form-header">
+                <div>
+                  <label style="font-weight:600;">캐릭터 이미지 목록</label>
+                  <p class="sub-label">여러 장의 이미지를 등록하고 대표 이미지를 선택 및 크롭할 수 있습니다.</p>
+                </div>
+                <button type="button" id="btn-form-add-images" class="btn-primary btn-sm">+ 이미지 추가</button>
+              </div>
+              <div id="form-gallery-list" class="gallery-form-grid"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <input type="hidden" id="form-char-id" />
+        <button id="btn-save-character" class="btn-primary">저장</button>
+        <button class="btn-secondary modal-close" data-modal="modal-char-form">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Faction Form Modal -->
+  <div id="modal-faction-form" class="modal-overlay hidden">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h2 id="faction-form-title">세력 추가</h2>
+        <button class="modal-close" data-modal="modal-faction-form">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>세력명 <span class="required">*</span></label>
+          <input type="text" id="faction-form-name" class="form-input" />
+        </div>
+        <div class="form-group">
+          <label>상위 조직 / 소속 집단</label>
+          <select id="faction-form-parent" class="form-input">
+            <option value="">없음 (최상위 대세력 / 독립 조직)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>설명</label>
+          <textarea id="faction-form-desc" class="form-textarea" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label>대표 색상</label>
+          <input type="color" id="faction-form-color" class="form-color" value="#888888" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <input type="hidden" id="faction-form-id" />
+        <button id="btn-save-faction" class="btn-primary">저장</button>
+        <button class="btn-secondary modal-close" data-modal="modal-faction-form">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Relation Form Modal -->
+  <div id="modal-relation-form" class="modal-overlay hidden">
+    <div class="modal modal-medium">
+      <div class="modal-header">
+        <h2 id="relation-form-title">관계 작성 / 편집</h2>
+        <button class="modal-close" data-modal="modal-relation-form">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label>캐릭터 A <span class="required">*</span></label>
+            <div id="form-btn-pick-a" class="char-pick-btn" style="width:100%;">
+              <span id="form-pick-a-label">👤 캐릭터 A 선택</span>
+            </div>
+            <input type="hidden" id="rel-char-a" />
+          </div>
+          <div class="form-group">
+            <label>캐릭터 B <span class="required">*</span></label>
+            <div id="form-btn-pick-b" class="char-pick-btn" style="width:100%;">
+              <span id="form-pick-b-label">👤 캐릭터 B 선택</span>
+            </div>
+            <input type="hidden" id="rel-char-b" />
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>관계 명칭 (직접 입력) <span class="required">*</span></label>
+            <input type="text" id="rel-type" class="form-input" placeholder="예: 라이벌, 애증의 파트너, 스승과 제자 등 직접 입력" />
+          </div>
+          <div class="form-group">
+            <label>상호 관계</label>
+            <label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;">
+              <input type="checkbox" id="rel-mutual" checked />
+              <span>양방향 상호 관계 (체크 해제 시 A→B 단방향)</span>
+            </label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>한 줄 설명 (간단 메모)</label>
+          <input type="text" id="rel-description" class="form-input" placeholder="예: 서로를 의식하지만 인정하지 않는 라이벌 관계" />
+        </div>
+        <div class="form-group">
+          <label>관계 서사 본문 (AI로 생성한 긴 스토리/관계 내용 복붙용)</label>
+          <textarea id="rel-narrative" class="form-textarea" rows="12" placeholder="AI가 뽑아준 두 인물의 서사, 사건, 감정선 등 긴 본문(2000자 이상)을 여기에 그대로 붙여넣으세요..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <input type="hidden" id="relation-form-id" />
+        <button id="btn-save-relation" class="btn-primary">저장</button>
+        <button class="btn-secondary modal-close" data-modal="modal-relation-form">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Image Lightbox Modal -->
+  <div id="modal-lightbox" class="modal-overlay hidden" style="background:rgba(0,0,0,0.92);padding:0;">
+    <div class="lightbox-container">
+      <button id="lightbox-close" class="lightbox-close-btn" title="닫기">✕</button>
+      <button id="lightbox-prev" class="lightbox-nav-btn lightbox-prev" title="이전">‹</button>
+      <img id="lightbox-img" class="lightbox-img" src="" alt="이미지 보기" />
+      <button id="lightbox-next" class="lightbox-nav-btn lightbox-next" title="다음">›</button>
+      <div id="lightbox-counter" class="lightbox-counter"></div>
+    </div>
+  </div>
+
+  <!-- Image Crop Modal -->
+  <div id="modal-image-crop" class="modal-overlay hidden">
+    <div class="modal modal-medium">
+      <div class="modal-header">
+        <h2>대표 이미지 크롭 및 조절</h2>
+        <button class="modal-close" data-modal="modal-image-crop">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="sub-label" style="margin-bottom:12px;">마우스로 이미지를 드래그하여 위치를 옮기고, 슬라이더나 휠로 확대/축소하여 대표 프로필 크기에 맞추세요.</p>
+        <div class="crop-viewport-wrapper">
+          <canvas id="crop-canvas" width="360" height="360"></canvas>
+        </div>
+        <div class="crop-toolbar">
+          <span>🔍 줌:</span>
+          <input type="range" id="crop-zoom" min="0.2" max="3.5" step="0.05" value="1" />
+          <span id="crop-zoom-val">100%</span>
+          <button type="button" id="btn-crop-reset" class="btn-secondary btn-sm">원래대로</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-crop-apply" class="btn-primary">대표 이미지로 설정</button>
+        <button type="button" class="btn-secondary modal-close" data-modal="modal-image-crop">✕ 취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Character Picker Modal -->
+  <div id="modal-char-picker" class="modal-overlay hidden">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h2 id="picker-title">캐릭터 선택</h2>
+        <button class="modal-close" data-modal="modal-char-picker">✕</button>
+      </div>
+      <div class="picker-toolbar">
+        <input type="text" id="picker-search" class="search-input" style="flex:1;" placeholder="🔍 이름, 별명, 세력 검색..." />
+        <select id="picker-filter-faction" class="filter-select">
+          <option value="">모든 세력</option>
+        </select>
+        <select id="picker-filter-gender" class="filter-select">
+          <option value="">모든 성별</option>
+        </select>
+        <select id="picker-sort-by" class="filter-select">
+          <option value="name">이름순</option>
+          <option value="age">나이순</option>
+          <option value="created_at">생성일순</option>
+        </select>
+      </div>
+      <div class="modal-body" style="padding-top:10px;">
+        <div id="picker-grid" class="picker-grid"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary modal-close" data-modal="modal-char-picker">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm Dialog -->
+  <div id="modal-confirm" class="modal-overlay hidden">
+    <div class="modal modal-small">
+      <div class="modal-header">
+        <h2>확인</h2>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-message"></p>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-confirm-yes" class="btn-danger">삭제</button>
+        <button id="btn-confirm-no" class="btn-secondary">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/marked.min.js"></script>
+  <script src="js/d3.v7.min.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/characters.js"></script>
+  <script src="js/relations.js"></script>
+  <script src="js/graph.js"></script>
+  <script src="js/episodes.js"></script>
+  <script src="js/calendar.js"></script>
+</body>
+</html>
