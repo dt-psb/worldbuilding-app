@@ -1,5 +1,4 @@
 @echo off
-cd /d "%~dp0."
-echo [WorldBuilding] Starting...
-call npm start
-pause
+cd /d "%~dp0"
+start "" "%~dp0WorldBuilding.exe"
+exit

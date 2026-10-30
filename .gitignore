@@ -50,3 +50,6 @@ desktop.ini
 #  테스트용 임시 파일
 # ─────────────────────────────────────────
 test-window.js
+
+# Windows Shortcuts
+*.lnk

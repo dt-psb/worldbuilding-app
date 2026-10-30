@@ -8,6 +8,25 @@ const Relations = (() => {
   let formSelectedCharA = null;
   let formSelectedCharB = null;
 
+  const COLOR_PRESETS = [
+    { label: '적대', color: '#f43f5e' },
+    { label: '우호', color: '#10b981' },
+    { label: '가족', color: '#f59e0b' },
+    { label: '연인', color: '#ec4899' },
+    { label: '동료', color: '#3b82f6' },
+    { label: '라이벌', color: '#8b5cf6' },
+    { label: '스승/제자', color: '#06b6d4' },
+    { label: '기타', color: '#64748b' },
+  ];
+
+  const STANDARD_REL_TYPES = ['적대', '우호', '가족', '연인', '동료', '라이벌', '스승/제자', '기타'];
+
+  function getRelColor(type, customColor = null) {
+    if (customColor) return customColor;
+    const match = COLOR_PRESETS.find(p => p.label === type);
+    return match ? match.color : '#64748b';
+  }
+
   function render() {
     renderViewer();
     renderTable();
@@ -137,6 +156,43 @@ const Relations = (() => {
       ? window.marked.parse(narrativeText)
       : escHtml(narrativeText).replace(/\n/g, '<br>');
 
+    // 관계 방향에 따른 배지 구성
+    let relMetaHtml = '';
+    if (rel.is_mutual) {
+      const col = rel.color || getRelColor(rel.type);
+      relMetaHtml = `
+        <span class="rel-type-tag" style="background:${col};box-shadow:0 2px 10px ${col}44;">${escHtml(rel.type || '관계')}</span>
+        <span style="font-size:12px;font-weight:700;color:var(--accent);">⟷ 양방향 상호</span>
+      `;
+    } else {
+      const isAtoB = (rel.char_a_id === charA.id);
+      const a2b = isAtoB ? rel.type : rel.type_b_to_a;
+      const colA2B = isAtoB ? (rel.color || getRelColor(rel.type)) : (rel.color_b_to_a || getRelColor(rel.type_b_to_a));
+      const b2a = isAtoB ? rel.type_b_to_a : rel.type;
+      const colB2A = isAtoB ? (rel.color_b_to_a || getRelColor(rel.type_b_to_a)) : (rel.color || getRelColor(rel.type));
+
+      relMetaHtml = `
+        <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+          ${a2b ? `
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;">
+              <span class="text-muted">${escHtml(charA.name)} ➔</span>
+              <span class="rel-type-tag" style="background:${colA2B};padding:3px 9px;font-size:11px;box-shadow:0 2px 8px ${colA2B}44;">${escHtml(a2b)}</span>
+            </div>
+          ` : `
+            <div style="font-size:10px;color:var(--text-dim);">${escHtml(charA.name)} ➔ (의식 없음/모름)</div>
+          `}
+          ${b2a ? `
+            <div style="display:flex;align-items:center;gap:5px;font-size:11px;">
+              <span class="rel-type-tag" style="background:${colB2A};padding:3px 9px;font-size:11px;box-shadow:0 2px 8px ${colB2A}44;">${escHtml(b2a)}</span>
+              <span class="text-muted">⬅ ${escHtml(charB.name)}</span>
+            </div>
+          ` : `
+            <div style="font-size:10px;color:var(--text-dim);">(의식 없음/모름) ⬅ ${escHtml(charB.name)}</div>
+          `}
+        </div>
+      `;
+    }
+
     container.innerHTML = `
       <div class="rel-compare-container">
         <div class="rel-char-profile" style="cursor:pointer;" onclick="Characters.openDetail(${charA.id})" title="상세 프로필 보기">
@@ -149,9 +205,8 @@ const Relations = (() => {
         </div>
 
         <div class="rel-center-meta">
-          <span class="rel-type-tag">${escHtml(rel.type || '관계')}</span>
-          <span style="font-size:18px;font-weight:700;color:var(--accent);">${rel.is_mutual ? '↔' : '→'}</span>
-          <div style="display:flex;gap:6px;margin-top:4px;">
+          ${relMetaHtml}
+          <div style="display:flex;gap:6px;margin-top:6px;">
             <button type="button" class="btn-secondary btn-sm" onclick="Relations.openForm(${rel.id})">편집</button>
             <button type="button" class="btn-danger btn-sm" onclick="Relations.deleteRelation(${rel.id})">삭제</button>
           </div>
@@ -234,11 +289,26 @@ const Relations = (() => {
         ? (r.narrative.length > 50 ? escHtml(r.narrative.substring(0, 50)) + '...' : escHtml(r.narrative))
         : '<span class="text-muted">-</span>';
 
+      let typeCellHtml = '';
+      if (r.is_mutual) {
+        const col = r.color || getRelColor(r.type);
+        typeCellHtml = `<span class="rel-type-tag" style="background:${col};padding:3px 10px;font-size:11px;box-shadow:0 2px 6px ${col}44;">${escHtml(r.type || '관계')}</span>`;
+      } else {
+        const colA = r.color || getRelColor(r.type);
+        const colB = r.color_b_to_a || getRelColor(r.type_b_to_a);
+        typeCellHtml = `
+          <div style="display:flex;flex-direction:column;gap:3px;font-size:11px;">
+            ${r.type ? `<div><span style="color:var(--text-muted);font-size:10px;">A➔B:</span> <span class="rel-type-tag" style="background:${colA};padding:2px 7px;font-size:10px;">${escHtml(r.type)}</span></div>` : ''}
+            ${r.type_b_to_a ? `<div><span style="color:var(--text-muted);font-size:10px;">B➔A:</span> <span class="rel-type-tag" style="background:${colB};padding:2px 7px;font-size:10px;">${escHtml(r.type_b_to_a)}</span></div>` : ''}
+          </div>
+        `;
+      }
+
       tr.innerHTML = `
         <td>
           <strong class="link-char" data-id="${r.char_a_id}" style="cursor:pointer;color:var(--accent);">${escHtml(r.char_a_name)}</strong>
         </td>
-        <td><span class="rel-type-tag" style="padding:3px 10px;font-size:11px;">${escHtml(r.type || '관계')}</span></td>
+        <td>${typeCellHtml}</td>
         <td>
           <strong class="link-char" data-id="${r.char_b_id}" style="cursor:pointer;color:var(--accent);">${escHtml(r.char_b_name)}</strong>
         </td>
@@ -283,6 +353,70 @@ const Relations = (() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  // ── 컬러 팔레트 렌더러 ───────────────────────────────────────────
+  function renderColorPalette(containerId, hiddenInputId, selectedColor = '#64748b') {
+    const container = document.getElementById(containerId);
+    const hiddenInput = document.getElementById(hiddenInputId);
+    if (!container || !hiddenInput) return;
+
+    hiddenInput.value = selectedColor || '#64748b';
+    container.innerHTML = COLOR_PRESETS.map(p => {
+      const isAct = p.color.toLowerCase() === (hiddenInput.value || '').toLowerCase();
+      return `
+        <button type="button" class="rel-color-chip ${isAct ? 'active' : ''}" data-color="${p.color}" title="${p.label} 계열 (${p.color})">
+          <span class="rel-color-dot" style="background:${p.color};"></span>
+          <span>${p.label}</span>
+        </button>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.rel-color-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.rel-color-chip').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        hiddenInput.value = btn.dataset.color;
+      });
+    });
+  }
+
+  // ── 관계 설정 모드 (양방향 vs 단방향) ─────────────────────────────
+  function setRelMode(isMutual) {
+    const mutualVal = document.getElementById('rel-mutual-val');
+    const btnMutual = document.getElementById('btn-rel-mode-mutual');
+    const btnDir = document.getElementById('btn-rel-mode-directional');
+    const secMutual = document.getElementById('rel-section-mutual');
+    const secDir = document.getElementById('rel-section-directional');
+
+    if (mutualVal) mutualVal.value = isMutual ? '1' : '0';
+    if (isMutual) {
+      btnMutual?.classList.add('active');
+      btnDir?.classList.remove('active');
+      secMutual?.classList.remove('hidden');
+      secDir?.classList.add('hidden');
+    } else {
+      btnMutual?.classList.remove('active');
+      btnDir?.classList.add('active');
+      secMutual?.classList.add('hidden');
+      secDir?.classList.remove('hidden');
+      updateDirectionLabels();
+    }
+  }
+
+  function updateDirectionLabels() {
+    const nameA = formSelectedCharA ? formSelectedCharA.name : '캐릭터 A';
+    const nameB = formSelectedCharB ? formSelectedCharB.name : '캐릭터 B';
+
+    const lblA = document.getElementById('lbl-dir-a-name');
+    const lblB = document.getElementById('lbl-dir-b-name');
+    const lblB2 = document.getElementById('lbl-dir-b-name-2');
+    const lblA2 = document.getElementById('lbl-dir-a-name-2');
+
+    if (lblA) lblA.textContent = nameA;
+    if (lblB) lblB.textContent = nameB;
+    if (lblB2) lblB2.textContent = nameB;
+    if (lblA2) lblA2.textContent = nameA;
+  }
+
   // ── 관계 폼 모달 ─────────────────────────────────────────────────
   function openForm(id = null) {
     document.getElementById('relation-form-id').value = id || '';
@@ -290,8 +424,33 @@ const Relations = (() => {
 
     document.getElementById('rel-char-a').value = '';
     document.getElementById('rel-char-b').value = '';
-    document.getElementById('rel-type').value = '';
-    document.getElementById('rel-mutual').checked = true;
+
+    // 1. 양방향 폼 리셋
+    const typeSelect = document.getElementById('rel-type-select');
+    const typeCustom = document.getElementById('rel-custom-type');
+    const boxMutual = document.getElementById('rel-custom-box-mutual');
+    if (typeSelect) typeSelect.value = '적대';
+    if (typeCustom) typeCustom.value = '';
+    boxMutual?.classList.add('hidden');
+    renderColorPalette('rel-palette-mutual', 'rel-color-mutual-val', '#64748b');
+
+    // 2. 단방향 폼 리셋
+    const selA2B = document.getElementById('rel-type-a2b-select');
+    const customA2B = document.getElementById('rel-custom-type-a2b');
+    const boxA2B = document.getElementById('rel-custom-box-a2b');
+    if (selA2B) selA2B.value = '적대';
+    if (customA2B) customA2B.value = '';
+    boxA2B?.classList.add('hidden');
+    renderColorPalette('rel-palette-a2b', 'rel-color-a2b-val', '#64748b');
+
+    const selB2A = document.getElementById('rel-type-b2a-select');
+    const customB2A = document.getElementById('rel-custom-type-b2a');
+    const boxB2A = document.getElementById('rel-custom-box-b2a');
+    if (selB2A) selB2A.value = '__none__';
+    if (customB2A) customB2A.value = '';
+    boxB2A?.classList.add('hidden');
+    renderColorPalette('rel-palette-b2a', 'rel-color-b2a-val', '#64748b');
+
     document.getElementById('rel-description').value = '';
     document.getElementById('rel-narrative').value = '';
 
@@ -303,13 +462,58 @@ const Relations = (() => {
       if (r) {
         document.getElementById('rel-char-a').value = r.char_a_id;
         document.getElementById('rel-char-b').value = r.char_b_id;
-        document.getElementById('rel-type').value = r.type || '';
-        document.getElementById('rel-mutual').checked = (r.is_mutual != null ? !!r.is_mutual : true);
+        formSelectedCharA = App.state.characters.find(c => c.id === r.char_a_id) || null;
+        formSelectedCharB = App.state.characters.find(c => c.id === r.char_b_id) || null;
+
         document.getElementById('rel-description').value = r.description || '';
         document.getElementById('rel-narrative').value = r.narrative || '';
 
-        formSelectedCharA = App.state.characters.find(c => c.id === r.char_a_id) || null;
-        formSelectedCharB = App.state.characters.find(c => c.id === r.char_b_id) || null;
+        const isMutual = r.is_mutual != null ? !!r.is_mutual : true;
+        setRelMode(isMutual);
+
+        if (isMutual) {
+          if (r.type && STANDARD_REL_TYPES.includes(r.type)) {
+            if (typeSelect) typeSelect.value = r.type;
+            boxMutual?.classList.add('hidden');
+          } else if (r.type) {
+            if (typeSelect) typeSelect.value = '__custom__';
+            if (typeCustom) typeCustom.value = r.type;
+            boxMutual?.classList.remove('hidden');
+            renderColorPalette('rel-palette-mutual', 'rel-color-mutual-val', r.color || '#64748b');
+          } else {
+            if (typeSelect) typeSelect.value = '기타';
+            boxMutual?.classList.add('hidden');
+          }
+        } else {
+          // 단방향 복원
+          // A ➔ B
+          if (!r.type) {
+            if (selA2B) selA2B.value = '__none__';
+            boxA2B?.classList.add('hidden');
+          } else if (STANDARD_REL_TYPES.includes(r.type)) {
+            if (selA2B) selA2B.value = r.type;
+            boxA2B?.classList.add('hidden');
+          } else {
+            if (selA2B) selA2B.value = '__custom__';
+            if (customA2B) customA2B.value = r.type;
+            boxA2B?.classList.remove('hidden');
+            renderColorPalette('rel-palette-a2b', 'rel-color-a2b-val', r.color || '#64748b');
+          }
+
+          // B ➔ A
+          if (!r.type_b_to_a) {
+            if (selB2A) selB2A.value = '__none__';
+            boxB2A?.classList.add('hidden');
+          } else if (STANDARD_REL_TYPES.includes(r.type_b_to_a)) {
+            if (selB2A) selB2A.value = r.type_b_to_a;
+            boxB2A?.classList.add('hidden');
+          } else {
+            if (selB2A) selB2A.value = '__custom__';
+            if (customB2A) customB2A.value = r.type_b_to_a;
+            boxB2A?.classList.remove('hidden');
+            renderColorPalette('rel-palette-b2a', 'rel-color-b2a-val', r.color_b_to_a || '#64748b');
+          }
+        }
       }
     } else {
       if (selectedCharA) {
@@ -320,10 +524,12 @@ const Relations = (() => {
         formSelectedCharB = selectedCharB;
         document.getElementById('rel-char-b').value = selectedCharB.id;
       }
+      setRelMode(true);
     }
 
     updatePickButton('form-pick-a-label', formSelectedCharA, '👤 캐릭터 A 선택');
     updatePickButton('form-pick-b-label', formSelectedCharB, '👤 캐릭터 B 선택');
+    updateDirectionLabels();
 
     App.openModal('modal-relation-form');
   }
@@ -341,23 +547,97 @@ const Relations = (() => {
 
     updatePickButton('form-pick-a-label', charA, '👤 캐릭터 A 선택');
     updatePickButton('form-pick-b-label', charB, '👤 캐릭터 B 선택');
+    updateDirectionLabels();
   }
 
   async function saveRelation() {
     try {
       const charA = document.getElementById('rel-char-a').value;
       const charB = document.getElementById('rel-char-b').value;
-      const type  = document.getElementById('rel-type').value.trim();
+      const isMutual = document.getElementById('rel-mutual-val')?.value === '1';
 
       if (!charA || !charB) { App.showToast('❗ 두 캐릭터를 모두 선택해주세요.'); return; }
       if (charA === charB)  { App.showToast('❗ 동일한 캐릭터끼리는 관계를 맺을 수 없습니다.'); return; }
-      if (!type)            { App.showToast('❗ 관계 명칭을 입력해주세요. (예: 라이벌, 절친)'); return; }
+
+      let type = '';
+      let color = '';
+      let typeBtoA = '';
+      let colorBtoA = '';
+
+      if (isMutual) {
+        const typeSelect = document.getElementById('rel-type-select');
+        const typeCustom = document.getElementById('rel-custom-type');
+        const colorVal = document.getElementById('rel-color-mutual-val')?.value || '#64748b';
+
+        if (typeSelect.value === '__custom__') {
+          type = (typeCustom ? typeCustom.value : '').trim();
+          if (!type) {
+            App.showToast('❗ 양방향 관계 명칭을 직접 입력해주세요.');
+            typeCustom?.focus();
+            return;
+          }
+          color = colorVal;
+        } else {
+          type = typeSelect.value;
+          color = getRelColor(type);
+        }
+      } else {
+        // 단방향: A ➔ B
+        const selA2B = document.getElementById('rel-type-a2b-select');
+        const customA2B = document.getElementById('rel-custom-type-a2b');
+        const colorA2BVal = document.getElementById('rel-color-a2b-val')?.value || '#64748b';
+
+        if (selA2B.value === '__none__') {
+          type = '';
+          color = '';
+        } else if (selA2B.value === '__custom__') {
+          type = (customA2B ? customA2B.value : '').trim();
+          if (!type) {
+            App.showToast(`❗ ${formSelectedCharA?.name || '캐릭터 A'} ➔ ${formSelectedCharB?.name || '캐릭터 B'} 관계 명칭을 입력해주세요.`);
+            customA2B?.focus();
+            return;
+          }
+          color = colorA2BVal;
+        } else {
+          type = selA2B.value;
+          color = getRelColor(type);
+        }
+
+        // 단방향: B ➔ A
+        const selB2A = document.getElementById('rel-type-b2a-select');
+        const customB2A = document.getElementById('rel-custom-type-b2a');
+        const colorB2AVal = document.getElementById('rel-color-b2a-val')?.value || '#64748b';
+
+        if (selB2A.value === '__none__') {
+          typeBtoA = '';
+          colorBtoA = '';
+        } else if (selB2A.value === '__custom__') {
+          typeBtoA = (customB2A ? customB2A.value : '').trim();
+          if (!typeBtoA) {
+            App.showToast(`❗ ${formSelectedCharB?.name || '캐릭터 B'} ➔ ${formSelectedCharA?.name || '캐릭터 A'} 관계 명칭을 입력해주세요.`);
+            customB2A?.focus();
+            return;
+          }
+          colorBtoA = colorB2AVal;
+        } else {
+          typeBtoA = selB2A.value;
+          colorBtoA = getRelColor(typeBtoA);
+        }
+
+        if (!type && !typeBtoA) {
+          App.showToast('❗ 단방향 관계에서는 최소 한 방향 이상의 관계를 설정해야 합니다.');
+          return;
+        }
+      }
 
       const data = {
         char_a_id:   Number(charA),
         char_b_id:   Number(charB),
+        is_mutual:   isMutual ? 1 : 0,
         type,
-        is_mutual:   document.getElementById('rel-mutual').checked ? 1 : 0,
+        color,
+        type_b_to_a: typeBtoA,
+        color_b_to_a: colorBtoA,
         description: document.getElementById('rel-description').value.trim(),
         narrative:   document.getElementById('rel-narrative').value.trim()
       };
@@ -410,6 +690,10 @@ const Relations = (() => {
     document.getElementById('btn-new-relation')?.addEventListener('click', () => openForm());
     document.getElementById('btn-save-relation')?.addEventListener('click', saveRelation);
 
+    // 모드 전환 버튼
+    document.getElementById('btn-rel-mode-mutual')?.addEventListener('click', () => setRelMode(true));
+    document.getElementById('btn-rel-mode-directional')?.addEventListener('click', () => setRelMode(false));
+
     // 뷰어 A 선택
     document.getElementById('rel-btn-pick-a')?.addEventListener('click', () => {
       CharPicker.open({
@@ -447,6 +731,7 @@ const Relations = (() => {
           formSelectedCharA = char;
           document.getElementById('rel-char-a').value = char.id;
           updatePickButton('form-pick-a-label', char, '👤 캐릭터 A 선택');
+          updateDirectionLabels();
         }
       });
     });
@@ -460,6 +745,7 @@ const Relations = (() => {
           formSelectedCharB = char;
           document.getElementById('rel-char-b').value = char.id;
           updatePickButton('form-pick-b-label', char, '👤 캐릭터 B 선택');
+          updateDirectionLabels();
         }
       });
     });
@@ -481,11 +767,44 @@ const Relations = (() => {
 
     // 목록 검색
     document.getElementById('rel-search-input')?.addEventListener('input', renderTable);
+
+    // 1. 양방향 관계 유형 셀렉트 변경 시 직접 입력 필드 토글
+    document.getElementById('rel-type-select')?.addEventListener('change', (e) => {
+      const box = document.getElementById('rel-custom-box-mutual');
+      if (e.target.value === '__custom__') {
+        box?.classList.remove('hidden');
+        document.getElementById('rel-custom-type')?.focus();
+      } else {
+        box?.classList.add('hidden');
+      }
+    });
+
+    // 2. 단방향 A➔B 셀렉트 변경 시 직접 입력 필드 토글
+    document.getElementById('rel-type-a2b-select')?.addEventListener('change', (e) => {
+      const box = document.getElementById('rel-custom-box-a2b');
+      if (e.target.value === '__custom__') {
+        box?.classList.remove('hidden');
+        document.getElementById('rel-custom-type-a2b')?.focus();
+      } else {
+        box?.classList.add('hidden');
+      }
+    });
+
+    // 3. 단방향 B➔A 셀렉트 변경 시 직접 입력 필드 토글
+    document.getElementById('rel-type-b2a-select')?.addEventListener('change', (e) => {
+      const box = document.getElementById('rel-custom-box-b2a');
+      if (e.target.value === '__custom__') {
+        box?.classList.remove('hidden');
+        document.getElementById('rel-custom-type-b2a')?.focus();
+      } else {
+        box?.classList.add('hidden');
+      }
+    });
   }
 
   document.addEventListener('DOMContentLoaded', initEvents);
 
-  return { render, openForm, openFormWith, deleteRelation, loadInViewer };
+  return { render, openForm, openFormWith, deleteRelation, loadInViewer, getRelColor };
 })();
 
 window.Relations = Relations;

@@ -3,16 +3,42 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:;" />
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; font-src 'self' https://cdn.jsdelivr.net data:; img-src 'self' file: data:;" />
   <title>세계관 빌더</title>
+  <link rel="icon" type="image/x-icon" href="icon.ico" />
+  <link rel="icon" type="image/png" href="icon.png" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
+  <!-- Custom Modern Titlebar -->
+  <header id="titlebar">
+    <div class="titlebar-drag-area"></div>
+    <div class="titlebar-controls">
+      <button type="button" id="btn-win-minimize" class="titlebar-btn" title="최소화" aria-label="Minimize">
+        <svg width="10" height="1" viewBox="0 0 10 1"><rect width="10" height="1" fill="currentColor"/></svg>
+      </button>
+      <button type="button" id="btn-win-maximize" class="titlebar-btn" title="최대화" aria-label="Maximize">
+        <svg id="svg-maximize" width="10" height="10" viewBox="0 0 10 10">
+          <rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/>
+        </svg>
+        <svg id="svg-unmaximize" class="hidden" width="10" height="10" viewBox="0 0 10 10">
+          <path d="M2.5,0.5 H9.5 V7.5 M0.5,2.5 H7.5 V9.5 H0.5 Z" fill="none" stroke="currentColor" stroke-width="1"/>
+        </svg>
+      </button>
+      <button type="button" id="btn-win-close" class="titlebar-btn btn-close" title="닫기" aria-label="Close">
+        <svg width="10" height="10" viewBox="0 0 10 10">
+          <path d="M0.5,0.5 L9.5,9.5 M9.5,0.5 L0.5,9.5" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
   <div id="app">
     <!-- Sidebar -->
     <nav id="sidebar">
       <div id="sidebar-logo">
-        <span class="logo-icon">⚔️</span>
+        <img class="logo-icon-img" src="icon.png" alt="Logo" style="width: 24px; height: 24px; border-radius: 6px; object-fit: cover; box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);" />
         <span class="logo-text">세계관 빌더</span>
       </div>
       <ul id="nav-list">
@@ -40,6 +66,10 @@
           <span class="nav-icon">🎂</span>
           <span class="nav-label">생일 달력</span>
         </li>
+        <li class="nav-item" data-page="backup">
+          <span class="nav-icon">💾</span>
+          <span class="nav-label">백업 &amp; 옵시디언</span>
+        </li>
       </ul>
       <div id="sidebar-footer">
         <span id="char-count-badge">0명</span>
@@ -61,16 +91,24 @@
             <select id="filter-gender" class="filter-select">
               <option value="">모든 성별</option>
             </select>
+            <select id="filter-episodes" class="filter-select">
+              <option value="">모든 출연 상태</option>
+              <option value="unappeared">미등장 (0회)</option>
+              <option value="appeared">등장 (1회 이상)</option>
+            </select>
             <select id="sort-by" class="filter-select">
               <option value="name">이름순</option>
               <option value="age">나이순</option>
               <option value="height">키순</option>
+              <option value="episodes_desc">출연 많은순</option>
+              <option value="episodes_asc">출연 적은순 (미등장 우선)</option>
               <option value="created_at">생성일순</option>
             </select>
             <div class="view-toggle">
               <button id="btn-grid-view" class="btn-icon active" title="그리드 뷰">▦</button>
               <button id="btn-list-view" class="btn-icon" title="리스트 뷰">☰</button>
             </div>
+            <button id="btn-open-height-compare" class="btn-secondary">📏 키 비교</button>
             <button id="btn-new-character" class="btn-primary">+ 캐릭터 추가</button>
           </div>
         </div>
@@ -81,9 +119,11 @@
               <tr>
                 <th>이름</th>
                 <th>나이</th>
+                <th>키</th>
                 <th>성별</th>
                 <th>출신지</th>
                 <th>소속 세력</th>
+                <th>출연</th>
                 <th>작업</th>
               </tr>
             </thead>
@@ -178,10 +218,28 @@
               <option value="스승/제자">스승/제자</option>
               <option value="기타">기타</option>
             </select>
+            <button id="btn-graph-pathfinder" class="btn-secondary">🔍 인맥 경로 탐색</button>
             <button id="btn-graph-reset" class="btn-secondary">초기화</button>
           </div>
         </div>
         <div id="graph-container">
+          <!-- Focus Mode & Path Highlight Floating Banners -->
+          <div id="graph-focus-banner" class="graph-floating-banner hidden">
+            <span id="graph-focus-text">🎯 <strong>인물</strong> 중심 집중 모드</span>
+            <div class="graph-banner-actions">
+              <div class="graph-depth-toggle">
+                <button type="button" id="btn-focus-depth-1" class="btn-xs btn-secondary active">1촌만</button>
+                <button type="button" id="btn-focus-depth-2" class="btn-xs btn-secondary">2촌까지</button>
+              </div>
+              <button type="button" id="btn-focus-reset" class="btn-xs btn-primary">✕ 전체 보기 복귀</button>
+            </div>
+          </div>
+
+          <div id="graph-path-banner" class="graph-floating-banner hidden">
+            <span id="graph-path-text">🔍 <strong>A ↔ B</strong> 최단 경로 하이라이트 중</span>
+            <button type="button" id="btn-path-reset" class="btn-xs btn-primary">✕ 하이라이트 해제</button>
+          </div>
+
           <svg id="graph-svg"></svg>
           <div id="graph-legend"></div>
         </div>
@@ -192,6 +250,7 @@
         <div class="page-header">
           <h1>에피소드</h1>
           <div class="page-actions">
+            <button id="btn-random-generator" class="btn-secondary">🎲 랜덤 소재 조합기</button>
             <button id="btn-new-episode" class="btn-primary">+ 에피소드 추가</button>
           </div>
         </div>
@@ -221,6 +280,103 @@
             <button id="cal-panel-close" class="btn-ghost btn-sm">✕</button>
           </div>
           <div id="cal-birthday-chars" class="cal-birthday-chars"></div>
+        </div>
+      </section>
+
+      <!-- Backup & Obsidian Page -->
+      <section id="page-backup" class="page hidden">
+        <div class="page-header">
+          <h1>데이터 안전 &amp; 옵시디언 연동</h1>
+        </div>
+
+        <div class="backup-grid">
+          <!-- 1. 옵시디언 볼트 내보내기 -->
+          <div class="backup-card">
+            <div class="backup-card-header">
+              <span class="backup-card-icon">📝</span>
+              <div>
+                <h3 style="margin:0 0 4px 0;font-size:16px;">옵시디언(Obsidian) 볼트 내보내기</h3>
+                <p class="text-muted" style="margin:0;font-size:12px;">캐릭터, 세력, 관계 서사, 에피소드를 옵시디언 마크다운 볼트로 완전 변환합니다.</p>
+              </div>
+            </div>
+            <div class="backup-card-body">
+              <div class="form-group" style="margin-bottom:12px;">
+                <label>저장할 볼트 폴더 경로 (기존 볼트 또는 새 폴더)</label>
+                <div style="display:flex;gap:8px;margin-top:6px;">
+                  <input type="text" id="obsidian-target-dir" class="form-input" style="flex:1;" placeholder="폴더를 선택해주세요..." readonly />
+                  <button type="button" id="btn-select-obsidian-dir" class="btn-secondary">📁 폴더 선택</button>
+                </div>
+              </div>
+              <div class="obsidian-features-list">
+                <div class="obsidian-feat-item">✨ <strong>위키링크 연동</strong>: <code>[[인물명]]</code>으로 연결되어 옵시디언 그래프 뷰에서 인맥망 자동 형성</div>
+                <div class="obsidian-feat-item">📑 <strong>YAML Frontmatter</strong>: 나이, 성별, 키, 세력 등 완벽한 메타데이터 포함</div>
+                <div class="obsidian-feat-item">🔒 <strong>비밀 프로필 보존</strong>: 스포일러 방지 접기 블록(Callout)으로 안전하게 내보내기</div>
+                <div class="obsidian-feat-item">📖 <strong>AI 서사 본문</strong>: 인물 간의 긴 서사가 개별 마크다운 문서로 온전히 저장</div>
+              </div>
+              <button type="button" id="btn-export-obsidian" class="btn-primary" style="margin-top:14px;width:100%;padding:10px;font-size:14px;font-weight:700;">
+                🚀 옵시디언 볼트로 전체 내보내기 실행
+              </button>
+            </div>
+          </div>
+
+          <!-- 2. SQLite DB 스냅샷 & 백업 파일 -->
+          <div class="backup-card">
+            <div class="backup-card-header">
+              <span class="backup-card-icon">🛡️</span>
+              <div>
+                <h3 style="margin:0 0 4px 0;font-size:16px;">데이터베이스 안전 백업 &amp; 복원</h3>
+                <p class="text-muted" style="margin:0;font-size:12px;">로컬 SQLite DB 스냅샷을 생성하고 언제든지 과거 시점으로 복원할 수 있습니다.</p>
+              </div>
+            </div>
+            <div class="backup-card-body">
+              <div id="db-info-box" class="db-info-box">
+                <div><strong>현재 DB 경로:</strong> <span id="lbl-db-path" class="text-muted" style="word-break:break-all;">-</span></div>
+                <div style="margin-top:6px;"><strong>DB 실용량:</strong> <span id="lbl-db-size" style="font-weight:700;color:var(--accent);">-</span> <span class="text-muted" style="font-size:11px;">(이미지는 절대경로 참조 방식으로 앱/DB 용량을 늘리지 않음)</span></div>
+              </div>
+
+              <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
+                <button type="button" id="btn-manual-backup" class="btn-primary" style="flex:1;min-width:160px;padding:9px 12px;">
+                  💾 새 백업 파일 저장 (.db)
+                </button>
+                <button type="button" id="btn-create-snapshot" class="btn-secondary" style="flex:1;min-width:160px;padding:9px 12px;">
+                  ⚡ 즉시 자동 스냅샷 생성
+                </button>
+                <button type="button" id="btn-restore-backup" class="btn-danger" style="flex:1;min-width:160px;padding:9px 12px;">
+                  📥 백업 파일로 복원 (.db)
+                </button>
+              </div>
+
+              <div style="margin-top:18px;">
+                <div style="font-size:13px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+                  <span>📑 최근 자동 백업 스냅샷 이력 (최대 15개)</span>
+                  <button type="button" id="btn-refresh-snapshots" class="btn-ghost btn-xs">🔄 새로고침</button>
+                </div>
+                <div id="snapshot-list-container" class="snapshot-list-container">
+                  <div class="text-muted" style="padding:10px;font-size:12px;">스냅샷 목록 불러오는 중...</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. JSON 전체 데이터 내보내기 / 가져오기 -->
+          <div class="backup-card" style="grid-column: 1 / -1;">
+            <div class="backup-card-header">
+              <span class="backup-card-icon">📦</span>
+              <div>
+                <h3 style="margin:0 0 4px 0;font-size:15px;">JSON 데이터 내보내기 &amp; 가져오기</h3>
+                <p class="text-muted" style="margin:0;font-size:12px;">데이터베이스 전체를 사람이 읽을 수 있는 단일 JSON 파일로 내보내거나 가져옵니다.</p>
+              </div>
+            </div>
+            <div class="backup-card-body" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
+              <button type="button" id="btn-export-json" class="btn-secondary" style="padding:8px 16px;">
+                📤 JSON 파일로 내보내기
+              </button>
+              <button type="button" id="btn-import-json" class="btn-secondary" style="padding:8px 16px;">
+                📥 JSON 파일에서 데이터 가져오기
+              </button>
+              <span class="text-muted" style="font-size:12px;">* 다른 기기나 외부 편집기 등으로 데이터를 옮길 때 간편합니다.</span>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -258,6 +414,16 @@
             <button type="button" id="btn-ep-add-sub" class="btn-secondary btn-sm">+ 캐릭터 추가</button>
           </div>
           <div id="ep-sub-chars" class="char-chip-list"></div>
+        </div>
+        <div class="form-group">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div>
+              <label style="margin-bottom:0">💬 언급된 인물 (직접 미등장)</label>
+              <span class="sub-label" style="margin-left:6px;font-size:11px;">※ 직접 등장하지 않고 언급만 된 인물 (등장 횟수 미포함)</span>
+            </div>
+            <button type="button" id="btn-ep-add-mentioned" class="btn-secondary btn-sm">+ 캐릭터 추가</button>
+          </div>
+          <div id="ep-mentioned-chars" class="char-chip-list"></div>
         </div>
         <div class="form-group">
           <label style="margin-bottom:8px;display:block;">🎬 단역 등장인물 (에피소드 전용)</label>
@@ -300,12 +466,19 @@
           <h4>🎭 조연 등장인물</h4>
           <div id="epd-sub-chars" class="char-chip-list readonly"></div>
         </div>
+        <div class="detail-section" id="epd-mentioned-section">
+          <h4>💬 언급된 인물 <span class="sub-label" style="font-size:11px;font-weight:normal;opacity:0.8;">(직접 미등장)</span></h4>
+          <div id="epd-mentioned-chars" class="char-chip-list readonly"></div>
+        </div>
         <div class="detail-section">
           <h4>🎬 단역 등장인물</h4>
           <div id="epd-extras" class="char-chip-list readonly"></div>
         </div>
         <div class="detail-section">
-          <h4>🔗 등장인물 간의 관계</h4>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
+            <h4 style="margin:0;">🔗 등장인물 간의 관계</h4>
+            <span class="sub-label" style="font-size:11px;color:var(--text-muted);">※ 해당 관계는 세계관 시작 시점 기준의 기본 설정입니다.</span>
+          </div>
           <div id="epd-relations-list" class="ep-relations-list"></div>
         </div>
       </div>
@@ -325,25 +498,41 @@
         <div id="detail-header-info">
           <div id="detail-avatar"></div>
           <div>
-            <h2 id="detail-name"></h2>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <h2 id="detail-name" style="margin:0;"></h2>
+              <span id="detail-status-badge" class="char-status-badge"></span>
+            </div>
             <div id="detail-aliases" class="alias-list"></div>
           </div>
         </div>
-        <button class="modal-close" data-modal="modal-char-detail">✕</button>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button type="button" id="btn-return-to-episode" class="btn-secondary btn-sm hidden" style="white-space:nowrap;">← 에피소드로 돌아가기</button>
+          <button class="modal-close" data-modal="modal-char-detail">✕</button>
+        </div>
       </div>
       <div class="modal-body">
         <div class="detail-two-col">
           <div class="detail-left">
             <div class="detail-meta-grid">
+              <div class="meta-item"><span class="meta-label">상태</span><span id="detail-status-text">생존</span></div>
               <div class="meta-item"><span class="meta-label">나이</span><span id="detail-age"></span></div>
               <div class="meta-item"><span class="meta-label">키</span><span id="detail-height"></span></div>
               <div class="meta-item"><span class="meta-label">생일</span><span id="detail-birthdate"></span></div>
               <div class="meta-item"><span class="meta-label">성별</span><span id="detail-gender"></span></div>
               <div class="meta-item"><span class="meta-label">출신지</span><span id="detail-origin"></span></div>
+              <div class="meta-item"><span class="meta-label">출연 횟수</span><span id="detail-episode-count">0회</span></div>
             </div>
             <div class="detail-section">
               <h4>소속 세력</h4>
               <div id="detail-factions" class="badge-list"></div>
+            </div>
+            <!-- 캐릭터 컬러 팔레트 -->
+            <div id="detail-palette-section" class="detail-section">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                <h4 style="margin:0;">🎨 컬러 팔레트</h4>
+                <span class="text-muted" style="font-size:11px;">클릭하여 헥스 복사</span>
+              </div>
+              <div id="detail-palette-list" class="detail-palette-list"></div>
             </div>
             <div class="detail-section">
               <h4>관계</h4>
@@ -352,35 +541,37 @@
           </div>
           <div class="detail-right">
             <div class="tab-bar">
-              <button class="tab-btn active" data-tab="tab-appearance">외모/성격</button>
-              <button class="tab-btn" data-tab="tab-public">공개 프로필</button>
-              <button class="tab-btn" data-tab="tab-secret">🔒 비밀 프로필</button>
+              <button class="tab-btn active" data-tab="tab-profile">📜 프로필</button>
+              <button class="tab-btn" data-tab="tab-custom-sections">📂 그 외 정보</button>
+              <button class="tab-btn" data-tab="tab-episodes">📖 출연작 (<span id="detail-ep-tab-count">0</span>)</button>
               <button class="tab-btn" data-tab="tab-prompt">💡 프롬프트</button>
               <button class="tab-btn" data-tab="tab-gallery">🖼️ 이미지 갤러리</button>
             </div>
-            <div class="tab-content" id="tab-appearance">
-              <div class="detail-section">
-                <h4>외모</h4>
-                <p id="detail-appearance" class="detail-text"></p>
+            <!-- 프로필 탭 (메인 프로필 + 추가 프로필들) -->
+            <div class="tab-content" id="tab-profile">
+              <div class="profile-card-block">
+                <div class="profile-tab-header">
+                  <span class="sub-label">메인 프로필</span>
+                  <button type="button" id="btn-copy-main-profile" class="btn-secondary btn-sm">📋 복사</button>
+                </div>
+                <div id="detail-profile-main" class="detail-text markdown-body"></div>
               </div>
-              <div class="detail-section">
-                <h4>성격</h4>
-                <p id="detail-personality" class="detail-text"></p>
+              <div id="detail-extra-profiles-container" style="display:flex;flex-direction:column;gap:14px;margin-top:16px;">
+                <!-- 추가 프로필들이 동적으로 렌더링됨 -->
               </div>
             </div>
-            <div class="tab-content" id="tab-public">
-              <div class="profile-tab-header">
-                <span class="sub-label">공개 프로필</span>
-                <button id="btn-copy-public" class="btn-secondary btn-sm">📋 복사</button>
+            <!-- 그 외 정보 탭 (과거사, 능력, 특이사항 등) -->
+            <div class="tab-content hidden" id="tab-custom-sections">
+              <div id="detail-custom-sections-container" style="display:flex;flex-direction:column;gap:14px;">
+                <!-- 그 외 정보 항목들이 동적으로 렌더링됨 -->
               </div>
-              <p id="detail-profile-public" class="detail-text"></p>
             </div>
-            <div class="tab-content hidden" id="tab-secret">
+            <div class="tab-content hidden" id="tab-episodes">
               <div class="profile-tab-header">
-                <span class="sub-label">비밀 프로필 🔒</span>
-                <button id="btn-copy-secret" class="btn-secondary btn-sm">📋 복사</button>
+                <span class="sub-label">출연 에피소드 목록</span>
+                <span class="sub-label" style="opacity:0.7;">클릭 시 해당 에피소드로 이동</span>
               </div>
-              <p id="detail-profile-secret" class="detail-text secret-text"></p>
+              <div id="detail-episodes-list" class="detail-ep-list"></div>
             </div>
             <div class="tab-content hidden" id="tab-prompt">
               <div class="prompt-header">
@@ -400,6 +591,7 @@
         </div>
       </div>
       <div class="modal-footer">
+        <button type="button" id="btn-export-profile-card" class="btn-secondary">📷 프로필 카드</button>
         <button id="btn-detail-edit" class="btn-primary">편집</button>
         <button id="btn-detail-delete" class="btn-danger">삭제</button>
         <button class="btn-secondary modal-close" data-modal="modal-char-detail">닫기</button>
@@ -466,6 +658,17 @@
               <input type="text" id="form-gender" class="form-input" placeholder="예: 남성, 여성 등" />
             </div>
             <div class="form-group">
+              <label>생사 / 상태 (스토리 시작 시점) <span class="required">*</span></label>
+              <select id="form-status" class="form-input">
+                <option value="alive">🟢 생존 / 활동 중</option>
+                <option value="deceased">⚫ 사망 (스토리 시작 시점 이전)</option>
+                <option value="comatose">🟣 의식불명 / 혼수</option>
+                <option value="missing">🟡 행방불명 / 실종</option>
+                <option value="custom">🔵 기타 (직접 입력)...</option>
+              </select>
+              <input type="text" id="form-status-custom" class="form-input hidden" style="margin-top:6px;" placeholder="상태 직접 입력 (예: 봉인됨, 영체화, 이세계 등)" />
+            </div>
+            <div class="form-group">
               <label>출신지</label>
               <input type="text" id="form-origin" class="form-input" />
             </div>
@@ -480,32 +683,51 @@
 
           <div class="form-right">
             <div class="tab-bar">
-              <button class="tab-btn active" data-tab="form-appearance">외모/성격</button>
-              <button class="tab-btn" data-tab="form-public">공개 프로필</button>
-              <button class="tab-btn" data-tab="form-secret">🔒 비밀</button>
+              <button class="tab-btn active" data-tab="form-profile-tab">📜 프로필</button>
+              <button class="tab-btn" data-tab="form-custom-sections-tab">📂 그 외 정보</button>
               <button class="tab-btn" data-tab="form-prompt-tab">💡 생성 프롬프트</button>
               <button class="tab-btn" data-tab="form-gallery-tab">🖼️ 이미지 관리</button>
+              <button class="tab-btn" data-tab="form-palette-tab">🎨 컬러 팔레트</button>
             </div>
-            <div class="tab-content" id="form-appearance">
+            <!-- 프로필 탭 (메인 프로필 + 추가 프로필들) -->
+            <div class="tab-content" id="form-profile-tab">
               <div class="form-group">
-                <label>외모</label>
-                <textarea id="form-appearance-text" class="form-textarea" rows="6" placeholder="외모 묘사를 입력하거나 붙여넣으세요..."></textarea>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <label style="font-weight:700;margin:0;">메인 프로필 <span class="required">*</span></label>
+                  <span class="sub-label">기본 필수 프로필 본문 (Obsidian 등 복붙)</span>
+                </div>
+                <textarea id="form-profile-main" class="form-textarea" rows="9" placeholder="기본 프로필 본문을 입력하세요..."></textarea>
               </div>
-              <div class="form-group">
-                <label>성격</label>
-                <textarea id="form-personality" class="form-textarea" rows="6" placeholder="성격 특징을 입력하거나 붙여넣으세요..."></textarea>
+
+              <div style="margin-top:16px;border-top:1px dashed var(--border);padding-top:14px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <div>
+                    <h4 style="margin:0;font-size:13px;display:flex;align-items:center;gap:6px;">
+                      <span>➕ 추가 프로필 목록</span>
+                    </h4>
+                    <p class="sub-label" style="margin:2px 0 0 0;">비밀 프로필, 과거 프로필, n부 프로필 등을 원하는 만큼 추가하세요.</p>
+                  </div>
+                  <button type="button" id="btn-add-extra-profile" class="btn-primary btn-sm">+ 프로필 추가</button>
+                </div>
+                <div id="form-extra-profiles-list" class="dynamic-sections-wrap">
+                  <!-- 동적으로 추가된 프로필 편집 블록들 -->
+                </div>
               </div>
             </div>
-            <div class="tab-content hidden" id="form-public">
-              <div class="form-group">
-                <label>공개 프로필 (외부에 드러난 정보 / Obsidian 본문 복붙)</label>
-                <textarea id="form-profile-public" class="form-textarea" rows="14" placeholder="공개 프로필 내용을 자유롭게 붙여넣으세요..."></textarea>
+
+            <!-- 그 외 정보 탭 (과거사, 능력, 특이사항 등 자유 추가) -->
+            <div class="tab-content hidden" id="form-custom-sections-tab">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <div>
+                  <h4 style="margin:0;font-size:14px;display:flex;align-items:center;gap:6px;">
+                    <span>📂 그 외 정보 (커스텀 항목)</span>
+                  </h4>
+                  <p class="sub-label" style="margin:4px 0 0 0;">과거사, 보유 능력, 특이사항, 장비 등 자유롭게 항목명을 정해 본문을 보관하세요.</p>
+                </div>
+                <button type="button" id="btn-add-custom-section" class="btn-primary btn-sm">+ 항목 추가</button>
               </div>
-            </div>
-            <div class="tab-content hidden" id="form-secret">
-              <div class="form-group">
-                <label>비밀 프로필 🔒 (숨겨진 진실 / 흑막 등)</label>
-                <textarea id="form-profile-secret" class="form-textarea secret-textarea" rows="14" placeholder="작중 비밀 프로필, 진실, 배후 설정 등을 입력하세요..."></textarea>
+              <div id="form-custom-sections-list" class="dynamic-sections-wrap">
+                <!-- 동적으로 추가된 커스텀 섹션 편집 블록들 -->
               </div>
             </div>
             <div class="tab-content hidden" id="form-prompt-tab">
@@ -523,6 +745,28 @@
                 <button type="button" id="btn-form-add-images" class="btn-primary btn-sm">+ 이미지 추가</button>
               </div>
               <div id="form-gallery-list" class="gallery-form-grid"></div>
+            </div>
+            <!-- 컬러 팔레트 관리 탭 -->
+            <div class="tab-content hidden" id="form-palette-tab">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <div>
+                  <h4 style="margin:0;font-size:14px;">🎨 캐릭터 테마 컬러 팔레트</h4>
+                  <p class="sub-label" style="margin:4px 0 0 0;">머리색, 눈동자, 피부, 의상 등 캐릭터 고유의 헥스코드를 등록하세요.</p>
+                </div>
+                <button type="button" id="btn-add-palette-item" class="btn-primary btn-sm">+ 색상 추가</button>
+              </div>
+
+              <div id="form-palette-items" class="form-palette-items-wrap">
+                <!-- 동적으로 색상 행 목록이 들어감 -->
+              </div>
+
+              <div style="margin-top:14px;padding:12px;background:var(--input-bg);border-radius:var(--radius-sm);border:1px solid var(--border);font-size:12px;color:var(--text-muted);line-height:1.6;">
+                💡 <strong>사용 팁</strong>:
+                <ul style="margin:4px 0 0 16px;padding:0;">
+                  <li>컬러 피커로 색을 고르거나, <code>#1A365D</code> 같은 헥스코드를 직접 타이핑/복붙할 수 있습니다.</li>
+                  <li>등록된 색상은 상세 프로필 창에서 <strong>원클릭으로 클립보드에 복사</strong>할 수 있어 일러스트 작업이나 프롬프트 작성 시 유용합니다.</li>
+                </ul>
+              </div>
             </div>
           </div>
         </div>
@@ -594,17 +838,105 @@
             <input type="hidden" id="rel-char-b" />
           </div>
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>관계 명칭 (직접 입력) <span class="required">*</span></label>
-            <input type="text" id="rel-type" class="form-input" placeholder="예: 라이벌, 애증의 파트너, 스승과 제자 등 직접 입력" />
+        <!-- 관계 설정 모드 토글 -->
+        <div class="form-group" style="margin-bottom:14px;">
+          <label>관계 설정 방식 <span class="required">*</span></label>
+          <div class="rel-mode-toggle">
+            <button type="button" id="btn-rel-mode-mutual" class="rel-mode-btn active">
+              ⟷ 양방향 상호 관계 (동등한 관계)
+            </button>
+            <button type="button" id="btn-rel-mode-directional" class="rel-mode-btn">
+              ➔ 단방향 / 개별 관계 (A➔B, B➔A 각각 지정)
+            </button>
           </div>
+          <input type="hidden" id="rel-mutual-val" value="1" />
+        </div>
+
+        <!-- 1. 양방향 섹션 -->
+        <div id="rel-section-mutual" style="margin-bottom:14px;">
           <div class="form-group">
-            <label>상호 관계</label>
-            <label style="display:flex;align-items:center;gap:6px;margin-top:8px;cursor:pointer;">
-              <input type="checkbox" id="rel-mutual" checked />
-              <span>양방향 상호 관계 (체크 해제 시 A→B 단방향)</span>
-            </label>
+            <label>양방향 관계 유형 <span class="required">*</span></label>
+            <select id="rel-type-select" class="form-input">
+              <option value="적대">적대</option>
+              <option value="우호">우호</option>
+              <option value="가족">가족</option>
+              <option value="연인">연인</option>
+              <option value="동료">동료</option>
+              <option value="라이벌">라이벌</option>
+              <option value="스승/제자">스승/제자</option>
+              <option value="기타">기타</option>
+              <option value="__custom__">직접 입력...</option>
+            </select>
+            <div id="rel-custom-box-mutual" class="hidden" style="margin-top:8px;">
+              <input type="text" id="rel-custom-type" class="form-input" placeholder="관계 명칭 직접 입력 (예: 애증, 계약 관계 등)" />
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-top:8px;">기준 색상 계열 (8종 프리셋 중 선택):</div>
+              <div class="rel-color-palette" id="rel-palette-mutual"></div>
+              <input type="hidden" id="rel-color-mutual-val" value="#64748b" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. 단방향 섹션 -->
+        <div id="rel-section-directional" class="hidden" style="margin-bottom:14px;">
+          <!-- A ➔ B -->
+          <div class="rel-direction-card">
+            <div class="rel-direction-header">
+              <span>👤</span>
+              <span id="lbl-dir-a-name" style="color:var(--accent);">캐릭터 A</span>
+              <span>➔</span>
+              <span id="lbl-dir-b-name" style="color:var(--accent);">캐릭터 B</span>
+              <span class="text-muted" style="font-size:11px;font-weight:normal;">(A가 B를 어떻게 의식하는가)</span>
+            </div>
+            <select id="rel-type-a2b-select" class="form-input">
+              <option value="__none__">(지정 안 함 / 상대방을 모름 / 무관)</option>
+              <option value="적대">적대</option>
+              <option value="우호">우호</option>
+              <option value="가족">가족</option>
+              <option value="연인">연인</option>
+              <option value="동료">동료</option>
+              <option value="라이벌">라이벌</option>
+              <option value="스승/제자">스승/제자</option>
+              <option value="기타">기타</option>
+              <option value="__custom__">직접 입력...</option>
+            </select>
+            <div id="rel-custom-box-a2b" class="hidden" style="margin-top:8px;">
+              <input type="text" id="rel-custom-type-a2b" class="form-input" placeholder="A ➔ B 관계 명칭 직접 입력" />
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-top:8px;">기준 색상 계열 (8종 프리셋 중 선택):</div>
+              <div class="rel-color-palette" id="rel-palette-a2b"></div>
+              <input type="hidden" id="rel-color-a2b-val" value="#64748b" />
+            </div>
+          </div>
+
+          <!-- B ➔ A -->
+          <div class="rel-direction-card">
+            <div class="rel-direction-header">
+              <span>👤</span>
+              <span id="lbl-dir-b-name-2" style="color:var(--accent);">캐릭터 B</span>
+              <span>➔</span>
+              <span id="lbl-dir-a-name-2" style="color:var(--accent);">캐릭터 A</span>
+              <span class="text-muted" style="font-size:11px;font-weight:normal;">(B가 A를 어떻게 의식하는가)</span>
+            </div>
+            <select id="rel-type-b2a-select" class="form-input">
+              <option value="__none__">(지정 안 함 / 상대방을 모름 / 무관)</option>
+              <option value="적대">적대</option>
+              <option value="우호">우호</option>
+              <option value="가족">가족</option>
+              <option value="연인">연인</option>
+              <option value="동료">동료</option>
+              <option value="라이벌">라이벌</option>
+              <option value="스승/제자">스승/제자</option>
+              <option value="기타">기타</option>
+              <option value="__custom__">직접 입력...</option>
+            </select>
+            <div id="rel-custom-box-b2a" class="hidden" style="margin-top:8px;">
+              <input type="text" id="rel-custom-type-b2a" class="form-input" placeholder="B ➔ A 관계 명칭 직접 입력" />
+              <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-top:8px;">기준 색상 계열 (8종 프리셋 중 선택):</div>
+              <div class="rel-color-palette" id="rel-palette-b2a"></div>
+              <input type="hidden" id="rel-color-b2a-val" value="#64748b" />
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+            * 한쪽은 상대방을 모르거나 무관한 경우 '(지정 안 함)'으로 두면 단일 방향 화살표만 생성됩니다.
           </div>
         </div>
         <div class="form-group">
@@ -657,6 +989,147 @@
       <div class="modal-footer">
         <button type="button" id="btn-crop-apply" class="btn-primary">대표 이미지로 설정</button>
         <button type="button" class="btn-secondary modal-close" data-modal="modal-image-crop">✕ 취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Random Combination Generator Modal -->
+  <div id="modal-random-generator" class="modal-overlay hidden">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h2>🎲 옴니버스 소재 &amp; 캐릭터 조합기</h2>
+        <button class="modal-close" data-modal="modal-random-generator">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="random-generator-toolbar">
+          <div class="rg-option-group">
+            <span class="rg-label">조합 인원:</span>
+            <div class="rg-count-buttons">
+              <button type="button" class="btn-secondary btn-sm rg-count-btn active" data-count="2">2명</button>
+              <button type="button" class="btn-secondary btn-sm rg-count-btn" data-count="3">3명</button>
+              <button type="button" class="btn-secondary btn-sm rg-count-btn" data-count="4">4명</button>
+            </div>
+          </div>
+          <div class="rg-checkboxes">
+            <label class="rg-check-label">
+              <input type="checkbox" id="rg-opt-unappeared" checked />
+              <span>미등장(0회) 인물 최소 1명 포함</span>
+            </label>
+            <label class="rg-check-label">
+              <input type="checkbox" id="rg-opt-diff-factions" />
+              <span>서로 다른 세력 우선</span>
+            </label>
+          </div>
+          <button type="button" id="btn-rg-draw" class="btn-primary rg-draw-btn">🎲 무작위 조합 뽑기</button>
+        </div>
+
+        <!-- 추첨 결과 영역 -->
+        <div id="rg-result-area" class="rg-result-area">
+          <div class="empty-state" style="padding:40px 20px;">
+            상단의 <strong>[🎲 무작위 조합 뽑기]</strong> 버튼을 누르면 300명 중 무작위 인물들을 매칭하고,<br>
+            인물들 사이의 기존 관계와 과거 공동 출연 이력을 분석해 드립니다.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-rg-create-episode" class="btn-primary hidden">📖 이 조합으로 새 에피소드 작성</button>
+        <button type="button" class="btn-secondary modal-close" data-modal="modal-random-generator">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Height Comparison Modal -->
+  <div id="modal-height-compare" class="modal-overlay hidden">
+    <div class="modal modal-large">
+      <div class="modal-header">
+        <h2>📏 캐릭터 키 비교 차트</h2>
+        <button class="modal-close" data-modal="modal-height-compare">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="hc-toolbar">
+          <div class="hc-chars-bar">
+            <span class="sub-label">비교 대상 (최대 8명):</span>
+            <div id="hc-chips-list" class="hc-chips-list"></div>
+            <button type="button" id="btn-hc-add-char" class="btn-secondary btn-sm">+ 캐릭터 추가</button>
+          </div>
+          <div class="hc-instructions sub-label">
+            💡 캐릭터 카드를 클릭하면 해당 인물을 <strong>비교 기준(±0cm)</strong>으로 설정할 수 있습니다.
+          </div>
+        </div>
+        <div class="hc-chart-wrapper">
+          <div id="hc-chart-view" class="hc-chart-view"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary modal-close" data-modal="modal-height-compare">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Profile Card Export Modal -->
+  <div id="modal-card-export" class="modal-overlay hidden">
+    <div class="modal modal-medium">
+      <div class="modal-header">
+        <h2>📷 캐릭터 프로필 카드 내보내기</h2>
+        <button class="modal-close" data-modal="modal-card-export">✕</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;align-items:center;padding:16px 20px;">
+        <p class="sub-label" style="margin-bottom:12px;align-self:flex-start;">
+          고해상도 카드 이미지입니다. 클립보드에 복사(Ctrl+V)하거나 PNG 파일로 저장할 수 있습니다.
+        </p>
+        <div class="card-export-canvas-wrap">
+          <canvas id="card-export-canvas" width="800" height="460"></canvas>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-card-copy-clipboard" class="btn-primary">📋 클립보드 복사</button>
+        <button type="button" id="btn-card-save-png" class="btn-secondary">💾 PNG 파일 저장</button>
+        <button type="button" class="btn-secondary modal-close" data-modal="modal-card-export">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Graph Pathfinder Modal -->
+  <div id="modal-graph-pathfinder" class="modal-overlay hidden">
+    <div class="modal modal-medium">
+      <div class="modal-header">
+        <h2>🔍 인맥 관계 경로 탐색기</h2>
+        <button class="modal-close" data-modal="modal-graph-pathfinder">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="sub-label" style="margin-bottom:14px;">
+          두 인물을 선택하면 서로 어떤 인맥 고리(최단 관계 경로)를 통해 연결되어 있는지 탐색합니다.
+        </p>
+        <div class="pf-select-row">
+          <div class="pf-char-picker-wrap">
+            <span class="sub-label">출발 인물 A:</span>
+            <div id="btn-pf-pick-a" class="char-pick-btn" style="width:100%;">
+              <span id="pf-pick-a-label">👤 인물 A 선택</span>
+            </div>
+            <input type="hidden" id="pf-char-a-id" />
+          </div>
+          <span class="rel-vs-badge" style="align-self:center;margin-top:14px;">➔</span>
+          <div class="pf-char-picker-wrap">
+            <span class="sub-label">도착 인물 B:</span>
+            <div id="btn-pf-pick-b" class="char-pick-btn" style="width:100%;">
+              <span id="pf-pick-b-label">👤 인물 B 선택</span>
+            </div>
+            <input type="hidden" id="pf-char-b-id" />
+          </div>
+        </div>
+        <div style="text-align:center;margin:16px 0;">
+          <button type="button" id="btn-pf-search" class="btn-primary" style="padding:8px 24px;">🔍 최단 경로 탐색</button>
+        </div>
+
+        <div id="pf-result-container" class="pf-result-container">
+          <div class="empty-state" style="padding:24px 0;">
+            두 인물을 선택하고 <strong>[최단 경로 탐색]</strong> 버튼을 눌러보세요.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="btn-pf-highlight-graph" class="btn-primary hidden">🕸️ 그래프에서 이 경로 하이라이트</button>
+        <button type="button" class="btn-secondary modal-close" data-modal="modal-graph-pathfinder">닫기</button>
       </div>
     </div>
   </div>
@@ -715,5 +1188,6 @@
   <script src="js/graph.js"></script>
   <script src="js/episodes.js"></script>
   <script src="js/calendar.js"></script>
+  <script src="js/backup.js"></script>
 </body>
 </html>

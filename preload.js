@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('api', {
   // Episodes
   getEpisodes: () => ipcRenderer.invoke('db:getEpisodes'),
   getEpisode: (id) => ipcRenderer.invoke('db:getEpisode', id),
+  getSharedEpisodes: (a, b) => ipcRenderer.invoke('db:getSharedEpisodes', a, b),
   createEpisode: (data) => ipcRenderer.invoke('db:createEpisode', data),
   updateEpisode: (id, data) => ipcRenderer.invoke('db:updateEpisode', id, data),
   deleteEpisode: (id) => ipcRenderer.invoke('db:deleteEpisode', id),
@@ -35,7 +36,36 @@ contextBridge.exposeInMainWorld('api', {
   openImage: () => ipcRenderer.invoke('dialog:openImage'),
   openImages: () => ipcRenderer.invoke('dialog:openImages'),
 
-  // Clipboard
+  // Clipboard & Export
   copyImage: (path) => ipcRenderer.invoke('clipboard:copyImage', path),
+  copyImageDataUrl: (dataUrl) => ipcRenderer.invoke('clipboard:copyImageDataUrl', dataUrl),
+  saveImageDataUrl: (data) => ipcRenderer.invoke('dialog:saveImageDataUrl', data),
   copyText: (text) => ipcRenderer.invoke('clipboard:copyText', text),
+
+  // Backup & Obsidian
+  selectDirectory: () => ipcRenderer.invoke('dialog:selectDirectory'),
+  saveBackupFile: () => ipcRenderer.invoke('dialog:saveBackupFile'),
+  openBackupFile: () => ipcRenderer.invoke('dialog:openBackupFile'),
+  saveJsonFile: () => ipcRenderer.invoke('dialog:saveJsonFile'),
+  openJsonFile: () => ipcRenderer.invoke('dialog:openJsonFile'),
+
+  getDbInfo: () => ipcRenderer.invoke('backup:getDbInfo'),
+  createSnapshot: () => ipcRenderer.invoke('backup:createSnapshot'),
+  listSnapshots: () => ipcRenderer.invoke('backup:listSnapshots'),
+  backupToFile: (path) => ipcRenderer.invoke('backup:backupToFile', path),
+  restoreFromPath: (path) => ipcRenderer.invoke('backup:restoreFromPath', path),
+  exportJSON: (path) => ipcRenderer.invoke('backup:exportJSON', path),
+  importJSON: (path) => ipcRenderer.invoke('backup:importJSON', path),
+  exportObsidianVault: (targetDir) => ipcRenderer.invoke('obsidian:exportVault', targetDir),
+
+  // Window Controls
+  minimizeWindow: () => ipcRenderer.send('window:minimize'),
+  maximizeWindow: () => ipcRenderer.send('window:maximize'),
+  closeWindow: () => ipcRenderer.send('window:close'),
+  isWindowMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  onWindowStateChange: (callback) => ipcRenderer.on('window:stateChange', (_, data) => callback(data)),
+
+  // Logging
+  logError: (source, message, err) => ipcRenderer.send('log:error', { source, message, err }),
+  logInfo: (source, message) => ipcRenderer.send('log:info', { source, message }),
 });

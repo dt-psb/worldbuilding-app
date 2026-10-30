@@ -1,6 +1,27 @@
 /* ── app.js: routing, global state, modal helpers ── */
 'use strict';
 
+// Global error logging to backend
+window.addEventListener('error', (event) => {
+  if (window.api && window.api.logError) {
+    window.api.logError('Renderer:window.error', event.message, {
+      filename: event.filename,
+      lineno: event.lineno,
+      colno: event.colno,
+      error: event.error ? event.error.stack : null
+    });
+  }
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  if (window.api && window.api.logError) {
+    const reason = event.reason;
+    window.api.logError('Renderer:unhandledrejection', reason && reason.message ? reason.message : String(reason), {
+      stack: reason && reason.stack ? reason.stack : null
+    });
+  }
+});
+
 const App = (() => {
   // ── Global state ──────────────────────────────────────────────────
   const state = {
@@ -27,6 +48,7 @@ const App = (() => {
     else if (page === 'graph') Graph.render();
     else if (page === 'episodes') Episodes.render();
     else if (page === 'calendar') Calendar.render();
+    else if (page === 'backup') Backup.render();
   }
 
   // ── Theme management ─────────────────────────────────────────────
@@ -120,10 +142,68 @@ const App = (() => {
     document.getElementById('char-count-badge').textContent = `${n}명`;
   }
 
+  // ── Window Controls ─────────────────────────────────────────────
+  function initWindowControls() {
+    if (!window.api) return;
+
+    const btnMin = document.getElementById('btn-win-minimize');
+    const btnMax = document.getElementById('btn-win-maximize');
+    const btnClose = document.getElementById('btn-win-close');
+    const titlebar = document.getElementById('titlebar');
+    const svgMax = document.getElementById('svg-maximize');
+    const svgUnmax = document.getElementById('svg-unmax') || document.getElementById('svg-unmaximize');
+
+    function updateMaxState(isMax) {
+      if (svgMax && svgUnmax) {
+        svgMax.classList.toggle('hidden', isMax);
+        svgUnmax.classList.toggle('hidden', !isMax);
+      }
+      if (btnMax) {
+        btnMax.title = isMax ? '이전 크기로 복원' : '최대화';
+      }
+    }
+
+    if (btnMin && window.api.minimizeWindow) {
+      btnMin.addEventListener('click', () => window.api.minimizeWindow());
+    }
+
+    if (btnMax && window.api.maximizeWindow) {
+      btnMax.addEventListener('click', () => window.api.maximizeWindow());
+    }
+
+    if (btnClose && window.api.closeWindow) {
+      btnClose.addEventListener('click', () => window.api.closeWindow());
+    }
+
+    // Double-click on titlebar to maximize / restore
+    if (titlebar && window.api.maximizeWindow) {
+      titlebar.addEventListener('dblclick', (e) => {
+        if (!e.target.closest('.titlebar-controls')) {
+          window.api.maximizeWindow();
+        }
+      });
+    }
+
+    // Listen to maximize state changes from main process
+    if (window.api.onWindowStateChange) {
+      window.api.onWindowStateChange((data) => {
+        updateMaxState(!!data.isMaximized);
+      });
+    }
+
+    // Initial check
+    if (window.api.isWindowMaximized) {
+      window.api.isWindowMaximized().then(isMax => updateMaxState(!!isMax)).catch(() => {});
+    }
+  }
+
   // ── Init ─────────────────────────────────────────────────────────
   async function init() {
     // Ensure all modals are closed and never block clicks
     document.querySelectorAll('.modal-overlay').forEach(el => el.classList.add('hidden'));
+
+    // Init custom titlebar window controls
+    initWindowControls();
 
     // Init theme
     initTheme();
