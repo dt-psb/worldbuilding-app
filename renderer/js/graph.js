@@ -318,6 +318,8 @@ const Graph = (() => {
   }
 
   function nodeRadius(d) {
+    if (!d) return 14;
+    if (d.isFaction) return 22;
     return 14 + Math.min((degreeCount[d.id] || 0) * 2, 16);
   }
 
@@ -355,6 +357,31 @@ const Graph = (() => {
       const isHighlighted = (hoveredNode && (e.source.id === hoveredNode.id || e.target.id === hoveredNode.id)) || isPathEdge;
       const isDimmed = (hoveredNode && !isHighlighted) || (hasPathHighlight && !isPathEdge);
       const showLabel = (isHighlighted || simNodes.length <= 60 || isPathEdge);
+
+      // 세력 연계 엣지인 경우 (isFactionEdge)
+      if (e.isFactionEdge) {
+        ctx.save();
+        ctx.globalAlpha = isPathEdge ? 1 : isDimmed ? 0.08 : 0.45;
+        ctx.strokeStyle = isPathEdge ? '#38bdf8' : (e.color || '#a855f7');
+        ctx.lineWidth = isPathEdge ? 3.5 : 1.8;
+        if (!isPathEdge) {
+          ctx.setLineDash([5, 4]);
+        } else {
+          ctx.setLineDash([]);
+        }
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(tx, ty);
+        ctx.stroke();
+
+        if (showLabel || isPathEdge) {
+          const mx = (sx + tx) / 2;
+          const my = (sy + ty) / 2;
+          drawEdgeLabel(ctx, '🏰 소속', isPathEdge ? '#38bdf8' : (e.color || '#c084fc'), mx, my, isPathEdge, isDimmed, isHighlighted, light);
+        }
+        ctx.restore();
+        return;
+      }
 
       const isMutual = (e.is_mutual != null ? !!e.is_mutual : true);
       const typeA = e.type || '';
@@ -478,14 +505,69 @@ const Graph = (() => {
 
     // ── 노드 그리기 ──
     simNodes.forEach(d => {
-      const r = nodeRadius(d);
       const isPathNode = hasPathHighlight && highlightPathNodeIds && highlightPathNodeIds.has(d.id);
-      const isFocusCenter = (focusCenterId === d.id);
       const isHovered = hoveredNode && hoveredNode.id === d.id;
       const isDimmed  = (hoveredNode && !isHovered && !simEdges.some(
         e => (e.source.id === hoveredNode.id && e.target.id === d.id) ||
              (e.target.id === hoveredNode.id && e.source.id === d.id)
       )) || (hasPathHighlight && !isPathNode);
+
+      // 세력 노드 (d.isFaction)
+      if (d.isFaction) {
+        const bw = 52, bh = 30;
+        ctx.save();
+        ctx.globalAlpha = isPathNode ? 1 : isDimmed ? 0.15 : 1;
+
+        // 1. 하이라이트 외곽 링
+        if (isPathNode) {
+          ctx.beginPath();
+          roundRect(ctx, d.x - bw/2 - 4, d.y - bh/2 - 4, bw + 8, bh + 8, 8);
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        } else if (isHovered) {
+          ctx.beginPath();
+          roundRect(ctx, d.x - bw/2 - 3, d.y - bh/2 - 3, bw + 6, bh + 6, 8);
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        // 2. 바디
+        ctx.beginPath();
+        roundRect(ctx, d.x - bw/2, d.y - bh/2, bw, bh, 6);
+        ctx.fillStyle = d.color || '#7c6af7';
+        ctx.fill();
+        ctx.strokeStyle = isPathNode || isHovered ? '#ffffff' : 'rgba(255,255,255,0.7)';
+        ctx.lineWidth = isPathNode || isHovered ? 2 : 1.2;
+        ctx.stroke();
+
+        // 3. 아이콘
+        ctx.font = '14px system-ui, sans-serif';
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🏰', d.x, d.y);
+
+        // 4. 세력 라벨 (하단)
+        const labelSize = Math.max(10, Math.min(12, 11 / transform.k * 0.9));
+        ctx.font = `bold ${labelSize}px system-ui, sans-serif`;
+        ctx.strokeStyle = labelOutline;
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        const labelText = `🏰 ${d.name}`;
+        ctx.strokeText(labelText, d.x, d.y + bh/2 + 5);
+        ctx.fillStyle = isPathNode ? '#38bdf8' : (d.color || labelColor);
+        ctx.fillText(labelText, d.x, d.y + bh/2 + 5);
+
+        ctx.restore();
+        return;
+      }
+
+      const r = nodeRadius(d);
+      const isFocusCenter = (focusCenterId === d.id);
 
       ctx.save();
       ctx.globalAlpha = isPathNode || isFocusCenter ? 1 : isDimmed ? 0.12 : 1;
@@ -581,8 +663,12 @@ const Graph = (() => {
     // 역순으로 검색 (위에 그려진 노드 먼저)
     for (let i = simNodes.length - 1; i >= 0; i--) {
       const d = simNodes[i];
-      const dx = d.x - x, dy = d.y - y;
-      if (Math.sqrt(dx*dx + dy*dy) <= nodeRadius(d) + 4) return d;
+      if (d.isFaction) {
+        if (Math.abs(d.x - x) <= 30 && Math.abs(d.y - y) <= 20) return d;
+      } else {
+        const dx = d.x - x, dy = d.y - y;
+        if (Math.sqrt(dx*dx + dy*dy) <= nodeRadius(d) + 4) return d;
+      }
     }
     return null;
   }
@@ -613,17 +699,26 @@ const Graph = (() => {
     }
 
     if (hit) {
-      const factionNames = (hit.factions || []).map(f => f.name).join(', ') || '없음';
-      const conns = degreeCount[hit.id] || 0;
-      tooltipEl.innerHTML = `
-        <div style="font-weight:700;font-size:13px;color:var(--accent);margin-bottom:2px;">${escHtml(hit.name)}</div>
-        <div style="font-size:11px;color:var(--text-muted);">소속: ${escHtml(factionNames)}</div>
-        <div style="font-size:11px;color:var(--text-muted);">연결된 관계: <strong>${conns}개</strong></div>
-        <div style="margin-top:6px;font-size:10px;color:var(--accent);display:flex;align-items:center;gap:6px;">
-          <span>더블클릭: 🎯 집중 모드</span>
-          <span>· 클릭: 상세 프로필 ↗</span>
-        </div>
-      `;
+      if (hit.isFaction) {
+        const fColor = hit.color || '#a855f7';
+        tooltipEl.innerHTML = `
+          <div style="font-weight:800;font-size:13px;color:${fColor};margin-bottom:3px;">🏰 ${escHtml(hit.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">소속 인물 연계 허브 노드</div>
+          <div style="margin-top:6px;font-size:10px;color:var(--accent);">드래그하여 위치 이동 가능</div>
+        `;
+      } else {
+        const factionNames = (hit.factions || []).map(f => f.name).join(', ') || '없음';
+        const conns = degreeCount[hit.id] || 0;
+        tooltipEl.innerHTML = `
+          <div style="font-weight:700;font-size:13px;color:var(--accent);margin-bottom:2px;">${escHtml(hit.name)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">소속: ${escHtml(factionNames)}</div>
+          <div style="font-size:11px;color:var(--text-muted);">연결된 관계: <strong>${conns}개</strong></div>
+          <div style="margin-top:6px;font-size:10px;color:var(--accent);display:flex;align-items:center;gap:6px;">
+            <span>더블클릭: 🎯 집중 모드</span>
+            <span>· 클릭: 상세 프로필 ↗</span>
+          </div>
+        `;
+      }
       const container = document.getElementById('graph-container');
       const rect = container.getBoundingClientRect();
       tooltipEl.style.left = (e.clientX - rect.left + 14) + 'px';
@@ -750,17 +845,22 @@ const Graph = (() => {
     App.openModal('modal-graph-pathfinder');
   }
 
-  function findShortestPath(startId, endId) {
+  let injectedFactionNodes = [];
+  let injectedFactionEdges = [];
+
+  function findShortestPath(startId, endId, includeFactions = true) {
     if (!graphData || !graphData.edges) return null;
     if (startId === endId) {
       const node = (graphData.nodes || []).find(n => n.id === startId);
-      return { nodes: [node].filter(Boolean), edges: [] };
+      return { nodes: [node].filter(Boolean), edges: [], hasFactions: false, factionsUsed: [] };
     }
 
     // 1. 인접 리스트 생성
     const adj = new Map();
     const edgeMap = new Map();
+    const factionNodeMap = new Map();
 
+    // 1-1. 기존 관계 간선 등록
     graphData.edges.forEach(e => {
       const u = e.char_a_id, v = e.char_b_id;
       if (!adj.has(u)) adj.set(u, []);
@@ -774,6 +874,46 @@ const Graph = (() => {
       if (e.is_mutual) edgeMap.set(k2, e);
     });
 
+    // 1-2. 소속 세력 연계 포함 시: 가상 세력 노드 및 세력 엣지 등록
+    if (includeFactions && graphData.nodes) {
+      graphData.nodes.forEach(c => {
+        if (!c.factions || !Array.isArray(c.factions)) return;
+        c.factions.forEach(f => {
+          if (!f || !f.id) return;
+          const fKey = `faction_${f.id}`;
+          if (!factionNodeMap.has(fKey)) {
+            factionNodeMap.set(fKey, {
+              id: fKey,
+              name: f.name || '세력',
+              color: f.color || '#a855f7',
+              isFaction: true,
+              factionId: f.id,
+              members: []
+            });
+          }
+          factionNodeMap.get(fKey).members.push(c.id);
+
+          if (!adj.has(c.id)) adj.set(c.id, []);
+          if (!adj.has(fKey)) adj.set(fKey, []);
+          adj.get(c.id).push(fKey);
+          adj.get(fKey).push(c.id);
+
+          const fEdge = {
+            id: `fedg_${c.id}_${f.id}`,
+            char_a_id: c.id,
+            char_b_id: fKey,
+            type: '소속',
+            is_mutual: true,
+            isFactionEdge: true,
+            faction: f,
+            color: f.color || '#a855f7'
+          };
+          edgeMap.set(`${c.id}_${fKey}`, fEdge);
+          edgeMap.set(`${fKey}_${c.id}`, fEdge);
+        });
+      });
+    }
+
     // 2. BFS 탐색
     const queue = [[startId]];
     const visited = new Set([startId]);
@@ -784,14 +924,30 @@ const Graph = (() => {
 
       if (curr === endId) {
         // 경로 완성: 노드 객체 및 간선 매핑
-        const pathNodes = path.map(id => (graphData.nodes || []).find(n => n.id === id)).filter(Boolean);
+        const pathNodes = path.map(id => {
+          if (typeof id === 'string' && id.startsWith('faction_')) {
+            return factionNodeMap.get(id);
+          }
+          return (graphData.nodes || []).find(n => n.id === id);
+        }).filter(Boolean);
+
         const pathEdges = [];
         for (let i = 0; i < path.length - 1; i++) {
           const u = path[i], v = path[i + 1];
           const edge = edgeMap.get(`${u}_${v}`) || edgeMap.get(`${v}_${u}`);
           if (edge) pathEdges.push(edge);
         }
-        return { nodes: pathNodes, edges: pathEdges };
+
+        const hasFactions = pathNodes.some(n => n.isFaction);
+        const factionsUsed = pathNodes.filter(n => n.isFaction);
+
+        return {
+          nodes: pathNodes,
+          edges: pathEdges,
+          hasFactions,
+          factionsUsed,
+          allFactionNodes: factionNodeMap
+        };
       }
 
       const neighbors = adj.get(curr) || [];
@@ -811,6 +967,7 @@ const Graph = (() => {
     const bId = Number(document.getElementById('pf-char-b-id')?.value);
     const container = document.getElementById('pf-result-container');
     const hlBtn = document.getElementById('btn-pf-highlight-graph');
+    const includeFactions = document.getElementById('pf-opt-include-factions')?.checked ?? true;
 
     if (!aId || !bId) {
       App.showToast('❗ 출발 인물과 도착 인물을 모두 선택해주세요.');
@@ -821,14 +978,16 @@ const Graph = (() => {
       return;
     }
 
-    const path = findShortestPath(aId, bId);
+    const path = findShortestPath(aId, bId, includeFactions);
     lastFoundPath = path;
 
     if (!path || path.nodes.length === 0) {
       container.innerHTML = `
         <div class="empty-state" style="padding:30px 0;">
           <div style="font-size:32px;margin-bottom:8px;">⚡</div>
-          <div>두 인물 사이에 연결된 관계 경로가 없습니다.<br><span style="font-size:11px;opacity:0.6;">(서로 완전히 독립된 인맥 네트워크에 속해 있습니다)</span></div>
+          <div>두 인물 사이에 연결된 관계 경로가 없습니다.<br>
+          <span style="font-size:11px;opacity:0.6;">(서로 완전히 독립된 인맥 네트워크에 속해 있습니다)</span></div>
+          ${!includeFactions ? '<div style="margin-top:10px;font-size:11.5px;color:var(--accent);">💡 [소속 세력 연계 포함] 옵션을 체크하고 다시 탐색해보세요!</div>' : ''}
         </div>`;
       hlBtn?.classList.add('hidden');
       return;
@@ -840,34 +999,67 @@ const Graph = (() => {
     const stepsHtml = [];
     for (let i = 0; i < path.nodes.length; i++) {
       const node = path.nodes[i];
-      const avatarSrc = (node.avatar_crop) || (node.avatar_path ? `file://${node.avatar_path}` : null);
-      const avatarHtml = avatarSrc
-        ? `<img class="pf-step-avatar" src="${avatarSrc}" alt="${escHtml(node.name)}" />`
-        : `<div class="pf-step-avatar initial" style="background:${window.strColor ? window.strColor(node.name) : '#7c6af7'}">${escHtml((node.name || '?')[0])}</div>`;
 
-      stepsHtml.push(`
-        <div class="pf-step-node">
-          ${avatarHtml}
-          <div class="pf-step-name">${escHtml(node.name)}</div>
-        </div>
-      `);
+      if (node.isFaction) {
+        // 세력 노드 카드 렌더링
+        const fColor = node.color || '#a855f7';
+        stepsHtml.push(`
+          <div class="pf-step-faction" style="border-color:${fColor};">
+            <div class="pf-step-faction-icon" style="background:${fColor}25; border-color:${fColor}; color:${fColor};">
+              🏰
+            </div>
+            <div class="pf-step-name" style="color:${fColor};font-weight:800;">${escHtml(node.name)}</div>
+            <span class="pf-step-faction-badge" style="background:${fColor};">세력 노드</span>
+          </div>
+        `);
+      } else {
+        // 일반 캐릭터 노드 카드 렌더링
+        const avatarSrc = (node.avatar_crop) || (node.avatar_path ? `file://${node.avatar_path}` : null);
+        const avatarHtml = avatarSrc
+          ? `<img class="pf-step-avatar" src="${avatarSrc}" alt="${escHtml(node.name)}" />`
+          : `<div class="pf-step-avatar initial" style="background:${window.strColor ? window.strColor(node.name) : '#7c6af7'}">${escHtml((node.name || '?')[0])}</div>`;
+
+        stepsHtml.push(`
+          <div class="pf-step-node">
+            ${avatarHtml}
+            <div class="pf-step-name">${escHtml(node.name)}</div>
+          </div>
+        `);
+      }
 
       if (i < path.edges.length) {
         const edge = path.edges[i];
-        stepsHtml.push(`
-          <div class="pf-step-edge">
-            <span class="rel-type-tag" style="font-size:10px;padding:2px 8px;">${escHtml(edge.type || '관계')}</span>
-            <div class="pf-edge-line">➔</div>
-          </div>
-        `);
+        if (edge.isFactionEdge) {
+          stepsHtml.push(`
+            <div class="pf-step-edge is-faction">
+              <span class="rel-type-tag" style="font-size:10px;padding:2px 8px;border-color:${edge.color || '#a855f7'};color:${edge.color || '#c084fc'};">🏰 소속</span>
+              <div class="pf-edge-line" style="color:${edge.color || '#c084fc'}">➔</div>
+            </div>
+          `);
+        } else {
+          stepsHtml.push(`
+            <div class="pf-step-edge">
+              <span class="rel-type-tag" style="font-size:10px;padding:2px 8px;">${escHtml(edge.type || '관계')}</span>
+              <div class="pf-edge-line">➔</div>
+            </div>
+          `);
+        }
       }
     }
 
     const distance = path.nodes.length - 1;
+    const factionCount = path.factionsUsed ? path.factionsUsed.length : 0;
+    const factionBadge = factionCount > 0
+      ? `<span class="badge" style="background:rgba(168,85,247,0.18);color:#c084fc;border:1px solid #a855f7;font-size:11px;padding:2px 8px;border-radius:12px;margin-left:8px;">🏰 세력 연계 (${factionCount}개 세력 경유)</span>`
+      : '';
+
     container.innerHTML = `
       <div class="pf-path-card">
-        <div class="pf-path-header">
-          <strong>최단 관계 경로 발견!</strong>
+        <div class="pf-path-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+          <div>
+            <strong>최단 관계 경로 발견!</strong>
+            ${factionBadge}
+          </div>
           <span class="sub-label">관계 거리: <strong>${distance}단계</strong></span>
         </div>
         <div class="pf-path-chain">
@@ -877,10 +1069,115 @@ const Graph = (() => {
     `;
   }
 
+  function cleanupInjectedFactions() {
+    if (injectedFactionNodes.length > 0) {
+      const injectedNodeIds = new Set(injectedFactionNodes.map(n => n.id));
+      simNodes = simNodes.filter(n => !injectedNodeIds.has(n.id));
+      injectedFactionNodes = [];
+    }
+    if (injectedFactionEdges.length > 0) {
+      const injectedEdgeIds = new Set(injectedFactionEdges.map(e => e.id));
+      simEdges = simEdges.filter(e => !injectedEdgeIds.has(e.id));
+      injectedFactionEdges = [];
+    }
+    if (simulation) {
+      simulation.nodes(simNodes);
+      simulation.force('link').links(simEdges);
+    }
+  }
+
   function highlightPathOnGraph(path) {
-    if (!path) return;
+    if (!path || !path.nodes) return;
+
+    // 이전 세력 노드/엣지 정리
+    cleanupInjectedFactions();
+
+    const pathNodes = path.nodes;
+    const pathEdges = path.edges;
+
+    // 경로에 세력 노드가 포함된 경우 동적으로 그래프에 세력 노드 및 연결선 주입
+    const factionNodesInPath = pathNodes.filter(n => n.isFaction);
+
+    if (factionNodesInPath.length > 0) {
+      factionNodesInPath.forEach(fn => {
+        let existingNode = simNodes.find(n => n.id === fn.id);
+        if (!existingNode) {
+          // 세력 노드 위치: 경로 상의 인접 캐릭터들의 중간 좌표
+          const neighborsInPath = [];
+          for (let i = 0; i < pathNodes.length; i++) {
+            if (pathNodes[i].id === fn.id) {
+              if (i > 0 && !pathNodes[i - 1].isFaction) neighborsInPath.push(pathNodes[i - 1]);
+              if (i < pathNodes.length - 1 && !pathNodes[i + 1].isFaction) neighborsInPath.push(pathNodes[i + 1]);
+            }
+          }
+
+          let avgX = W / 2, avgY = H / 2;
+          if (neighborsInPath.length > 0) {
+            const sum = neighborsInPath.reduce((acc, curr) => {
+              const sn = simNodes.find(n => n.id === curr.id);
+              if (sn) {
+                acc.x += sn.x;
+                acc.y += sn.y;
+                acc.count++;
+              }
+              return acc;
+            }, { x: 0, y: 0, count: 0 });
+            if (sum.count > 0) {
+              avgX = sum.x / sum.count;
+              avgY = sum.y / sum.count - 35;
+            }
+          }
+
+          const injectedNode = {
+            ...fn,
+            x: avgX,
+            y: avgY,
+            vx: 0,
+            vy: 0
+          };
+          simNodes.push(injectedNode);
+          injectedFactionNodes.push(injectedNode);
+          existingNode = injectedNode;
+        }
+
+        // 해당 세력에 속한 캐릭터들을 찾아 세력 노드와 연결선(Edge) 생성
+        // "그 세력에 포함되는(만약 해당캐릭터도 있을경우 걔도 연결) 캐릭터 노드들도 다 해당 세력 노드와 연결되있게"
+        const factionId = fn.factionId;
+        simNodes.forEach(sn => {
+          if (sn.isFaction) return;
+          const belongs = sn.factions && sn.factions.some(f => f.id === factionId || String(f.id) === String(factionId));
+          if (belongs) {
+            const edgeExists = simEdges.some(e =>
+              (e.source.id === sn.id && e.target.id === existingNode.id) ||
+              (e.target.id === sn.id && e.source.id === existingNode.id)
+            );
+            if (!edgeExists) {
+              const edgeId = `fedg_${sn.id}_${factionId}`;
+              const fEdge = {
+                id: edgeId,
+                source: sn,
+                target: existingNode,
+                type: '소속',
+                is_mutual: true,
+                isFactionEdge: true,
+                color: fn.color || '#a855f7'
+              };
+              simEdges.push(fEdge);
+              injectedFactionEdges.push(fEdge);
+            }
+          }
+        });
+      });
+    }
+
     highlightPathNodeIds = new Set(path.nodes.map(n => n.id));
     highlightPathEdgeIds = new Set(path.edges.map(e => e.id));
+
+    if (simulation && factionNodesInPath.length > 0) {
+      simulation.nodes(simNodes);
+      simulation.force('link').links(simEdges);
+      simulation.alpha(0.25).restart();
+    }
 
     const banner = document.getElementById('graph-path-banner');
     const textEl = document.getElementById('graph-path-text');
@@ -888,7 +1185,8 @@ const Graph = (() => {
       banner.classList.remove('hidden');
       const startName = path.nodes[0]?.name || '';
       const endName = path.nodes[path.nodes.length - 1]?.name || '';
-      textEl.innerHTML = `🔍 <strong>${escHtml(startName)}</strong> ➔ <strong>${escHtml(endName)}</strong> 최단 경로 하이라이트 중 (${path.nodes.length - 1}단계)`;
+      const fNote = factionNodesInPath.length > 0 ? ` (🏰 세력 연계 포함, ${factionNodesInPath.length}개 세력 경유)` : '';
+      textEl.innerHTML = `🔍 <strong>${escHtml(startName)}</strong> ➔ <strong>${escHtml(endName)}</strong> 최단 경로 하이라이트 중 (${path.nodes.length - 1}단계${fNote})`;
     }
 
     drawFrame();
@@ -896,6 +1194,7 @@ const Graph = (() => {
   }
 
   function resetPathHighlight() {
+    cleanupInjectedFactions();
     highlightPathNodeIds = null;
     highlightPathEdgeIds = null;
     document.getElementById('graph-path-banner')?.classList.add('hidden');
